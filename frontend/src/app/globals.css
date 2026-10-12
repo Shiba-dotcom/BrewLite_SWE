@@ -1,26 +1,90 @@
 @import "tailwindcss";
 
+@theme {
+  --color-primary: #090100;
+  --color-primary-container: #2c1810;
+  --color-on-primary: #ffffff;
+  --color-on-primary-container: #9e7e73;
+  --color-primary-fixed: #ffdbce;
+  --color-primary-fixed-dim: #e3bfb2;
+  --color-on-primary-fixed: #2a170f;
+  --color-on-primary-fixed-variant: #5a4137;
+
+  --color-secondary: #845326;
+  --color-secondary-container: #febc85;
+  --color-on-secondary: #ffffff;
+  --color-on-secondary-container: #78491d;
+  --color-secondary-fixed: #ffdcc2;
+  --color-secondary-fixed-dim: #fab983;
+  --color-on-secondary-fixed: #2e1500;
+  --color-on-secondary-fixed-variant: #683c11;
+
+  --color-tertiary: #080100;
+  --color-tertiary-container: #351300;
+  --color-on-tertiary: #ffffff;
+  --color-on-tertiary-container: #ca6c2b;
+  --color-tertiary-fixed: #ffdbc9;
+  --color-tertiary-fixed-dim: #ffb68c;
+  --color-on-tertiary-fixed: #321200;
+  --color-on-tertiary-fixed-variant: #753400;
+
+  --color-background: #fef8f4;
+  --color-surface: #fef8f4;
+  --color-surface-bright: #fef8f4;
+  --color-surface-dim: #dfd9d5;
+  --color-surface-variant: #e7e1dd;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f8f2ee;
+  --color-surface-container: #f3ede9;
+  --color-surface-container-high: #ede7e3;
+  --color-surface-container-highest: #e7e1dd;
+  --color-on-surface: #1d1b19;
+  --color-on-surface-variant: #504440;
+  --color-inverse-surface: #32302e;
+  --color-inverse-on-surface: #f6f0ec;
+  --color-outline: #827470;
+  --color-outline-variant: #d3c3be;
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+  --color-on-error: #ffffff;
+  --color-on-error-container: #93000a;
+
+  --font-headline: var(--font-epilogue), "Epilogue", Georgia, serif;
+  --font-display: var(--font-epilogue), "Epilogue", Georgia, serif;
+  --font-body: var(--font-jakarta), "Plus Jakarta Sans", sans-serif;
+  --font-label: var(--font-jakarta), "Plus Jakarta Sans", sans-serif;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #fef8f4;
+  --foreground: #1d1b19;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-jakarta), "Plus Jakarta Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-headline {
+  font-family: var(--font-epilogue), "Epilogue", Georgia, serif;
+}
+
+.font-display {
+  font-family: var(--font-epilogue), "Epilogue", Georgia, serif;
+}
+
+.font-body {
+  font-family: var(--font-jakarta), "Plus Jakarta Sans", sans-serif;
+}
+
+/* Material symbols adjustments */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  line-height: 1;
+}
+
+.material-symbols-fill {
+  font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
 }
