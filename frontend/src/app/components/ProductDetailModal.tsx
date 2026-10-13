@@ -273,20 +273,56 @@ export default function ProductDetailModal({
         </div>
       </div>
 
-      {/* Top Header / Breadcrumbs Bar inside modal/page */}
-      <div className="sticky top-0 z-30 bg-[#fef8f4]/95 backdrop-blur-md border-b border-[#2c1810]/10 px-4 md:px-8 py-3.5 flex items-center justify-between gap-4">
-        {isModal ? (
+      {/* Top Header / Breadcrumbs Bar inside modal or standalone page */}
+      {isModal ? (
+        <div className="sticky top-0 z-30 bg-[#fef8f4]/95 backdrop-blur-md border-b border-[#2c1810]/10 px-4 md:px-8 py-3.5 flex items-center justify-between gap-4">
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center gap-2 text-[14px] font-semibold text-[#504440] hover:text-[#2c1810] transition-colors group"
+            className="inline-flex items-center gap-2 text-[14px] font-semibold text-[#504440] hover:text-[#2c1810] transition-colors group cursor-pointer"
           >
             <span className="material-symbols-outlined text-lg group-hover:-translate-x-1 transition-transform">
               arrow_back
             </span>
             <span>{"Quay lại Thực đơn".normalize("NFC")}</span>
           </button>
-        ) : (
+
+          <div className="flex items-center gap-2 md:gap-3">
+            <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#f3ede9] text-[12px] font-semibold text-[#504440] border border-[#2c1810]/5">
+              <span className="w-2 h-2 rounded-full bg-[#845326] animate-pulse" />
+              {"Đang phục vụ tại Quầy Express".normalize("NFC")}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setIsFavorite(!isFavorite)}
+              className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+                isFavorite
+                  ? "bg-[#fedcc2] text-[#845326]"
+                  : "bg-[#f3ede9] hover:bg-[#ede7e3] text-[#504440]"
+              }`}
+              title="Lưu món yêu thích"
+            >
+              <span
+                className="material-symbols-outlined text-lg"
+                style={{ fontVariationSettings: isFavorite ? "'FILL' 1" : "'FILL' 0" }}
+              >
+                favorite
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-9 h-9 rounded-full bg-[#f3ede9] hover:bg-[#ede7e3] flex items-center justify-center text-[#504440] hover:text-[#1d1b19] transition-colors cursor-pointer"
+              title="Đóng (Esc)"
+            >
+              <span className="material-symbols-outlined text-xl">close</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="max-w-[1280px] w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2 flex items-center justify-between gap-4">
           <Link
             href="/menu"
             className="inline-flex items-center gap-2 text-[14px] font-semibold text-[#504440] hover:text-[#2c1810] transition-colors group"
@@ -296,44 +332,33 @@ export default function ProductDetailModal({
             </span>
             <span>{"Quay lại Thực đơn".normalize("NFC")}</span>
           </Link>
-        )}
 
-        <div className="flex items-center gap-2 md:gap-3">
-          <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#f3ede9] text-[12px] font-semibold text-[#504440] border border-[#2c1810]/5">
-            <span className="w-2 h-2 rounded-full bg-[#845326] animate-pulse" />
-            {"Đang phục vụ tại Quầy Express".normalize("NFC")}
-          </span>
-
-          <button
-            type="button"
-            onClick={() => setIsFavorite(!isFavorite)}
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
-              isFavorite
-                ? "bg-[#fedcc2] text-[#845326]"
-                : "bg-[#f3ede9] hover:bg-[#ede7e3] text-[#504440]"
-            }`}
-            title="Lưu món yêu thích"
-          >
-            <span
-              className="material-symbols-outlined text-lg"
-              style={{ fontVariationSettings: isFavorite ? "'FILL' 1" : "'FILL' 0" }}
-            >
-              favorite
+          <div className="flex items-center gap-2 md:gap-3">
+            <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#f3ede9] text-[12px] font-semibold text-[#504440] border border-[#2c1810]/5">
+              <span className="w-2 h-2 rounded-full bg-[#845326] animate-pulse" />
+              {"Đang phục vụ tại Quầy Express".normalize("NFC")}
             </span>
-          </button>
 
-          {isModal && (
             <button
               type="button"
-              onClick={onClose}
-              className="w-9 h-9 rounded-full bg-[#f3ede9] hover:bg-[#ede7e3] flex items-center justify-center text-[#504440] hover:text-[#1d1b19] transition-colors"
-              title="Đóng (Esc)"
+              onClick={() => setIsFavorite(!isFavorite)}
+              className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+                isFavorite
+                  ? "bg-[#fedcc2] text-[#845326]"
+                  : "bg-[#f3ede9] hover:bg-[#ede7e3] text-[#504440]"
+              }`}
+              title="Lưu món yêu thích"
             >
-              <span className="material-symbols-outlined text-xl">close</span>
+              <span
+                className="material-symbols-outlined text-lg"
+                style={{ fontVariationSettings: isFavorite ? "'FILL' 1" : "'FILL' 0" }}
+              >
+                favorite
+              </span>
             </button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Main Detail Grid Layout (12 Cols: 5 Cols Left, 7 Cols Right) */}
       <div className="max-w-[1280px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">

@@ -1,10 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import Link from "next/link";
-import Image from "next/image";
+import React, { use, useState, useEffect } from "react";
 import { notFound, useRouter } from "next/navigation";
-import BrewLiteLogo from "../../components/BrewLiteLogo";
+import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 import ProductDetailModal, {
   CustomizationDetails,
@@ -144,13 +142,16 @@ const DEFAULT_PRODUCTS: Product[] = [
 ];
 
 export default function ProductDetailClient({
-  productId,
+  paramsPromise,
 }: {
-  productId: number;
+  paramsPromise: Promise<{ id: string }>;
 }) {
+  const unwrappedParams = use(paramsPromise);
   const router = useRouter();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const productId = parseInt(unwrappedParams.id, 10);
 
   useEffect(() => {
     let isMounted = true;
@@ -218,47 +219,8 @@ export default function ProductDetailClient({
 
   return (
     <div className="min-h-screen bg-[#fef8f4] text-[#1d1b19] flex flex-col font-body selection:bg-[#fedcc2] selection:text-[#2c1810]">
-      {/* ── HEADER ── */}
-      <header className="sticky top-0 z-50 bg-[#FEF8F4]/90 backdrop-blur-md border-b border-[#2C1810]/10 px-4 py-3">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 w-full flex items-center justify-between gap-6">
-          <div className="flex items-center">
-            <Link className="flex items-center" href="/menu">
-              <BrewLiteLogo className="h-9 md:h-10 w-auto" />
-            </Link>
-            <nav className="hidden sm:flex items-center gap-1.5 ml-4">
-              <Link
-                href="/menu"
-                className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-[#2C1810] text-[#FEF8F4] font-body"
-              >
-                {"Thực đơn".normalize("NFC")}
-              </Link>
-              <Link
-                href="#"
-                className="px-3.5 py-1.5 rounded-full text-xs font-medium text-[#2C1810]/70 hover:text-[#2C1810] hover:bg-[#2C1810]/5 transition-colors font-body"
-              >
-                {"Đơn hàng".normalize("NFC")}
-              </Link>
-            </nav>
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#D97736]/10 text-[#D97736] border border-[#D97736]/20 text-xs font-semibold whitespace-nowrap font-body">
-              <span>{"⭐ 120 điểm".normalize("NFC")}</span>
-            </div>
-
-            <div className="relative w-8 h-8 rounded-full overflow-hidden ring-2 ring-[#ede7e3]">
-              <Image
-                alt="Profile"
-                src="https://lh3.googleusercontent.com/aida/AEtjO1VeNmJ7fNrlOsKRDCp-paWPp28u_ONFRs411sz930XjQrQBNjra7iOYMYqp9QNdUOzQEI29k_s1q2kKn_wZ0WgjjAyP4mxkpxkgDI5Py7jJZYmWHYYkRUyS_U9hoFMK3NpNPt7glbxb2KUa8t-9ECy8_ehEASrNhWWvgJMfTkViWYPA0IwF99vCWCiYJsDIsKPn-wP75woSuq6WiWKsGVB6WNaH7pK7uZvVAq7NzE9VU3TpdCipzqc2kk9t"
-                fill
-                sizes="32px"
-                className="object-cover"
-                unoptimized
-              />
-            </div>
-          </div>
-        </div>
-      </header>
+      {/* ── UNIFIED HEADER (100% IDENTICAL TO MENU PAGE) ── */}
+      <Header cartCount={0} activeTab="menu" />
 
       {/* ── PRODUCT DETAIL VIEW ── */}
       <main className="flex-1 w-full bg-[#fef8f4]">

@@ -1,20 +1,20 @@
 import React, { Suspense } from "react";
 import ProductDetailClient from "./ProductDetailClient";
 
+// Disable instant-shell to prevent Next.js 16 prerender URL data error
+export const instant = false;
+
 export async function generateStaticParams() {
   return [1, 2, 3, 4, 5, 6, 7, 8].map((id) => ({
     id: id.toString(),
   }));
 }
 
-export default async function ProductDetailPage({
+export default function ProductDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const resolvedParams = await params;
-  const productId = parseInt(resolvedParams.id, 10);
-
   return (
     <Suspense
       fallback={
@@ -28,7 +28,7 @@ export default async function ProductDetailPage({
         </div>
       }
     >
-      <ProductDetailClient productId={productId} />
+      <ProductDetailClient paramsPromise={params} />
     </Suspense>
   );
 }
