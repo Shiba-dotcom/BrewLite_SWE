@@ -5,6 +5,9 @@ import Link from "next/link";
 import Image from "next/image";
 import BrewLiteLogo from "../components/BrewLiteLogo";
 import Footer from "../components/Footer";
+import ProductDetailModal, {
+  CustomizationDetails,
+} from "../components/ProductDetailModal";
 
 export interface Product {
   id: number;
@@ -21,12 +24,15 @@ export interface Product {
   };
 }
 
-interface CartItem {
+export interface CartItem {
   id: number;
   name: string;
   price: number;
   temp: string;
   quantity: number;
+  size?: string;
+  toppings?: string[];
+  notes?: string;
 }
 
 /**
@@ -278,6 +284,60 @@ export default function MenuPage() {
     () => cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
     [cart]
   );
+
+  // Product Detail Modal state (Task 4)
+  const [selectedProductForDetail, setSelectedProductForDetail] = useState<Product | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  const handleOpenDetail = (product: Product) => {
+    setSelectedProductForDetail(product);
+    setIsDetailModalOpen(true);
+  };
+
+  const handleCustomizedAddToCart = (
+    product: Product,
+    customization: CustomizationDetails
+  ) => {
+    setCart((prev) => {
+      const toppingsKey = (customization.toppings || [])
+        .map((t) => t.id)
+        .sort()
+        .join(",");
+      const existingIndex = prev.findIndex(
+        (item) =>
+          item.id === product.id &&
+          item.size === customization.size &&
+          item.temp === customization.temp &&
+          (item.toppings || []).sort().join(",") === toppingsKey
+      );
+
+      if (existingIndex > -1) {
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          quantity: updated[existingIndex].quantity + customization.quantity,
+        };
+        return updated;
+      }
+
+      return [
+        ...prev,
+        {
+          id: product.id,
+          name: product.name,
+          price: customization.unitPrice,
+          temp: customization.temp,
+          quantity: customization.quantity,
+          size: customization.size,
+          toppings: customization.toppings.map((t) => t.name),
+          notes: customization.notes,
+        },
+      ];
+    });
+
+    setBadgeAnimated(true);
+    setTimeout(() => setBadgeAnimated(false), 300);
+  };
 
   const handleAddToCart = (product: Product) => {
     const defaultTemp = product.chips?.temps ? product.chips.temps[0] : "Iced";
@@ -575,7 +635,15 @@ export default function MenuPage() {
 
             {/* Asymmetrical Feature Hero Vignette (Barista Spotlight - Original Stitch URL) */}
             <div className="lg:col-span-5 relative">
-              <div className="relative rounded-3xl overflow-hidden shadow-xl bg-[#ede7e3] aspect-4/3 group">
+              <div
+                className="relative rounded-3xl overflow-hidden shadow-xl bg-[#ede7e3] aspect-4/3 group cursor-pointer"
+                onClick={() =>
+                  handleOpenDetail(
+                    products.find((p) => p.id === 2) || DEFAULT_PRODUCTS[1]
+                  )
+                }
+                title={"Xem chi tiết & Tùy chọn Cà Phê Muối".normalize("NFC")}
+              >
                 <Image
                   src={normalizeStitchImageUrl(
                     "https://lh3.googleusercontent.com/aida-public/AB6AXuAYAWNv7xan_IBhkVnDwTw9ytyeJzEWqGL2xrdQkStMsLr84eJr6AYLJMbTWrqZyFYH3bSYACwcwaM5V8yPF-X64NNkPJWgjZn7qd4UvLYlxz6EmM78WzjqR6R4a-hUXrw-n6SmQ68flgxEqJ3IEME8TTurzNVLddbbUtLO3uTbX859LBRKKkH3y6b3BtoIBFyGKkaxsEGKtncc48Ap-tUAoQnzI4gJzJnuB-KDy0q_9uIEIHQyxT5XQw",
@@ -762,7 +830,8 @@ export default function MenuPage() {
               return (
                 <article
                   key={product.id}
-                  className="product-card flex flex-col justify-between bg-[#f8f2ee] rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 p-3.5 group border border-[#2c1810]/5"
+                  className="product-card flex flex-col justify-between bg-[#f8f2ee] rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 p-3.5 group border border-[#2c1810]/5 cursor-pointer"
+                  onClick={() => handleOpenDetail(product)}
                 >
                   <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-[#ede7e3]">
                     <Image
@@ -847,13 +916,17 @@ export default function MenuPage() {
 
                     <button
                       type="button"
-                      className="h-10 px-4 rounded-xl bg-[#2c1810] hover:bg-[#845326] text-white flex items-center gap-1 transition-all active:scale-95 shadow-sm text-[13px] font-semibold font-body"
-                      onClick={() => handleAddToCart(product)}
+                      className="h-10 px-4 rounded-xl bg-[#2c1810] hover:bg-[#845326] text-white flex items-center gap-1.5 transition-all active:scale-95 shadow-sm text-[13px] font-semibold font-body cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenDetail(product);
+                      }}
+                      title={"Tùy chọn món & Thêm vào giỏ".normalize("NFC")}
                     >
                       <span className="material-symbols-outlined text-lg">
-                        add
+                        tune
                       </span>
-                      <span>Add</span>
+                      <span>{"Tùy chọn".normalize("NFC")}</span>
                     </button>
                   </div>
                 </article>
@@ -967,6 +1040,15 @@ export default function MenuPage() {
           </div>
         </div>
       </aside>
+
+      {/* ── PRODUCT DETAIL CUSTOMIZATION MODAL (TASK 4) ── */}
+      <ProductDetailModal
+        product={selectedProductForDetail}
+        isOpen={isDetailModalOpen}
+        onClose={() => setIsDetailModalOpen(false)}
+        onAddToCart={handleCustomizedAddToCart}
+        isModal={true}
+      />
 
       {/* ── FOOTER ── */}
       <Footer />
