@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -417,12 +418,16 @@ function SummaryCard({
   discount,
   promoCode,
   onCheckout,
+  isLoading,
+  error,
 }: {
   subtotal: number;
   itemCount: number;
   discount: number;
   promoCode: string | null;
   onCheckout: () => void;
+  isLoading?: boolean;
+  error?: string | null;
 }) {
   const ECO_FEE = 0;
   const afterDiscount = Math.max(0, subtotal - discount);
@@ -504,19 +509,24 @@ function SummaryCard({
       </div>
 
       {/* Primary CTA */}
+      {error && (
+        <p className="text-[12px] text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 font-body">
+          {error}
+        </p>
+      )}
       <button
         type="button"
         onClick={onCheckout}
-        disabled={itemCount === 0}
+        disabled={itemCount === 0 || isLoading}
         id="proceedToCheckoutBtn"
         className="w-full flex items-center justify-between gap-2 bg-[#221811] hover:bg-[#2c1810] disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-3.5 rounded-xl transition-all active:scale-[0.98] shadow-md font-body"
       >
         <span className="text-[14px] font-bold">
-          {"Tiến hành Thanh toán".normalize("NFC")}
+          {isLoading ? "Đang xử lý...".normalize("NFC") : "Tiến hành Thanh toán".normalize("NFC")}
         </span>
         <div className="flex items-center gap-1.5">
-          <span className="text-[14px] font-bold">{vnd(total)}</span>
-          <ArrowRight size={16} strokeWidth={2.5} />
+          {!isLoading && <span className="text-[14px] font-bold">{vnd(total)}</span>}
+          <ArrowRight size={16} strokeWidth={2.5} className={isLoading ? "animate-spin" : ""} />
         </div>
       </button>
 
@@ -647,6 +657,9 @@ export default function CartPage() {
 
   const [hydrated, setHydrated] = useState(false);
   const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const router = useRouter();
 
   // State for delete confirmation modal
   const [itemToDelete, setItemToDelete] = useState<CartItem | null>(null);
@@ -684,12 +697,38 @@ export default function CartPage() {
     };
   }, [editingItem]);
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (!displayItems.length) return;
-    const finalTotal = subtotal - discountAmount + Math.round((subtotal - discountAmount) * 0.08);
-    alert(
-      `Tiến hành thanh toán không tiền mặt: ${vnd(finalTotal)}\nHỗ trợ Apple Pay, MoMo, Thẻ Không Tiếp Xúc.`
-    );
+    setCheckoutLoading(true);
+    setCheckoutError(null);
+    try {
+      const payload = {
+        items: displayItems.map((item) => ({
+          productId: item.id,
+          productName: item.name,
+          size: item.size ?? "M",
+          toppings: item.toppings ?? [],
+          quantity: item.quantity,
+          unitPrice: item.price,
+        })),
+      };
+      const res = await fetch("http://localhost:3001/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.message ?? `Lỗi máy chủ (${res.status})`);
+      }
+      const data = await res.json();
+      clearCart();
+      router.push(`/checkout?orderId=${data.orderId}`);
+    } catch (e: unknown) {
+      setCheckoutError(e instanceof Error ? e.message : "Đặt hàng thất bại, vui lòng thử lại.");
+    } finally {
+      setCheckoutLoading(false);
+    }
   };
 
   /**
@@ -860,6 +899,8 @@ export default function CartPage() {
                 discount={discountAmount}
                 promoCode={appliedPromo}
                 onCheckout={handleCheckout}
+                isLoading={checkoutLoading}
+                error={checkoutError}
               />
             </aside>
           </div>
