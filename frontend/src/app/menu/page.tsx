@@ -3,12 +3,12 @@
 import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import BrewLiteLogo from "../components/BrewLiteLogo";
 import Footer from "../components/Footer";
 import Header from "../components/Header";
 import ProductDetailModal, {
   CustomizationDetails,
 } from "../components/ProductDetailModal";
+import { useCartStore } from "../store/cartStore";
 
 export interface Product {
   id: number;
@@ -25,16 +25,9 @@ export interface Product {
   };
 }
 
-export interface CartItem {
-  id: number;
-  name: string;
-  price: number;
-  temp: string;
-  quantity: number;
-  size?: string;
-  toppings?: string[];
-  notes?: string;
-}
+// CartItem type is now owned by the Zustand store.
+// Re-export it here so existing imports don't break.
+export type { CartItem } from "../store/cartStore";
 
 /**
  * Standardize Stitch image URLs by stripping any existing query
@@ -52,7 +45,7 @@ export function normalizeStitchImageUrl(
 }
 
 // 100% Original Google Stitch Menu Image URLs with Unicode NFC normalization
-const DEFAULT_PRODUCTS: Product[] = [
+export const DEFAULT_PRODUCTS: Product[] = [
   {
     id: 1,
     name: "Caramel Macchiato Reserve".normalize("NFC"),
@@ -204,8 +197,8 @@ export default function MenuPage() {
   // Selected temperature per product
   const [productTemps, setProductTemps] = useState<Record<number, string>>({});
 
-  // Cart
-  const [cart, setCart] = useState<CartItem[]>([]);
+  // Cart via Zustand store
+  const { addItem, cartCount, cartTotal } = useCartStore();
   const [badgeAnimated, setBadgeAnimated] = useState<boolean>(false);
 
   // Promo code
@@ -279,12 +272,14 @@ export default function MenuPage() {
     });
   }, [products, selectedCategory, searchQuery, tempFilter]);
 
-  // Cart calculations
-  const cartCount = useMemo(() => cart.reduce((acc, item) => acc + item.quantity, 0), [cart]);
-  const cartTotal = useMemo(
-    () => cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
-    [cart]
-  );
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+
+  // Cart count & total derived from Zustand store (hydrated on client)
+  const count = hydrated ? cartCount() : 0;
+  const total = hydrated ? cartTotal() : 0;
 
   // Product Detail Modal state (Task 4)
   const [selectedProductForDetail, setSelectedProductForDetail] = useState<Product | null>(null);
@@ -299,41 +294,16 @@ export default function MenuPage() {
     product: Product,
     customization: CustomizationDetails
   ) => {
-    setCart((prev) => {
-      const toppingsKey = (customization.toppings || [])
-        .map((t) => t.id)
-        .sort()
-        .join(",");
-      const existingIndex = prev.findIndex(
-        (item) =>
-          item.id === product.id &&
-          item.size === customization.size &&
-          item.temp === customization.temp &&
-          (item.toppings || []).sort().join(",") === toppingsKey
-      );
-
-      if (existingIndex > -1) {
-        const updated = [...prev];
-        updated[existingIndex] = {
-          ...updated[existingIndex],
-          quantity: updated[existingIndex].quantity + customization.quantity,
-        };
-        return updated;
-      }
-
-      return [
-        ...prev,
-        {
-          id: product.id,
-          name: product.name,
-          price: customization.unitPrice,
-          temp: customization.temp,
-          quantity: customization.quantity,
-          size: customization.size,
-          toppings: customization.toppings.map((t) => t.name),
-          notes: customization.notes,
-        },
-      ];
+    addItem({
+      id: product.id,
+      name: product.name,
+      price: customization.unitPrice,
+      temp: customization.temp,
+      quantity: customization.quantity,
+      size: customization.size,
+      toppings: customization.toppings.map((t) => t.name),
+      notes: customization.notes,
+      imageUrl: product.imageUrl,
     });
 
     setBadgeAnimated(true);
@@ -344,25 +314,13 @@ export default function MenuPage() {
     const defaultTemp = product.chips?.temps ? product.chips.temps[0] : "Iced";
     const temp = productTemps[product.id] || defaultTemp;
 
-    setCart((prev) => {
-      const existing = prev.find((item) => item.id === product.id && item.temp === temp);
-      if (existing) {
-        return prev.map((item) =>
-          item.id === product.id && item.temp === temp
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      }
-      return [
-        ...prev,
-        {
-          id: product.id,
-          name: product.name,
-          price: product.basePrice,
-          temp,
-          quantity: 1,
-        },
-      ];
+    addItem({
+      id: product.id,
+      name: product.name,
+      price: product.basePrice,
+      temp,
+      quantity: 1,
+      imageUrl: product.imageUrl,
     });
 
     setBadgeAnimated(true);
@@ -383,21 +341,11 @@ export default function MenuPage() {
     );
   };
 
-  const handleTriggerCheckout = () => {
-    if (cart.length === 0) {
-      alert("Please add your favorite drink or pastry before paying!");
-    } else {
-      alert(
-        `Proceeding to Cashless Terminal: ${cartTotal.toLocaleString("vi-VN")}đ. Tap Apple Pay, MoMo, or Card.`
-      );
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#fef8f4] text-[#1d1b19] flex flex-col font-body selection:bg-[#fedcc2] selection:text-[#2c1810]">
       {/* ── HEADER (STANDARDIZED COMPONENT) ── */}
       <Header
-        cartCount={cartCount}
+        cartCount={count}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         activeTab="menu"
@@ -733,7 +681,7 @@ export default function MenuPage() {
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
             id="productGrid"
           >
-            {filteredProducts.map((product) => {
+            {filteredProducts.map((product, idx) => {
               const defaultTemp = product.chips?.temps ? product.chips.temps[0] : "Iced";
               const currentTemp = productTemps[product.id] || defaultTemp;
 
@@ -753,6 +701,7 @@ export default function MenuPage() {
                       alt={product.name}
                       fill
                       unoptimized
+                      loading={idx < 4 ? "eager" : "lazy"}
                       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                       className="object-cover group-hover:scale-105 transition-transform duration-500"
                     />
@@ -897,30 +846,34 @@ export default function MenuPage() {
                   shopping_bag
                 </span>
                 <span
-                  className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#845326] text-white text-[11px] font-bold flex items-center justify-center font-body"
+                  suppressHydrationWarning
+                  className={`absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#845326] text-white text-[11px] font-bold flex items-center justify-center font-body transition-transform ${
+                    badgeAnimated ? "scale-125" : "scale-100"
+                  }`}
                   id="cartCountBadge"
                 >
-                  {cartCount}
+                  {count}
                 </span>
               </div>
               <div className="flex flex-col truncate font-body">
                 <div className="flex items-center gap-1.5">
                   <span
+                    suppressHydrationWarning
                     className="text-[15px] font-bold text-white font-body"
                     id="cartSummaryText"
                   >
-                    {cartCount === 0
+                    {count === 0
                       ? "Your Cup is empty"
-                      : cartCount === 1
-                      ? `1 Item in Cup (${cartTotal.toLocaleString("vi-VN")}đ)`
-                      : `${cartCount} Items in Cup (${cartTotal.toLocaleString("vi-VN")}đ)`}
+                      : count === 1
+                      ? `1 Item in Cup (${total.toLocaleString("vi-VN")}đ)`
+                      : `${count} Items in Cup (${total.toLocaleString("vi-VN")}đ)`}
                   </span>
                   <span className="hidden sm:inline text-[#e3bfb2] text-[13px]">
                     • Downtown Roastery
                   </span>
                 </div>
                 <p className="text-[13px] text-[#e3bfb2] truncate font-body">
-                  Estimated brew time ~4 mins after checkout
+                  {"Pha xong trong ~4 phút sau thanh toán".normalize("NFC")}
                 </p>
               </div>
             </div>
@@ -929,23 +882,23 @@ export default function MenuPage() {
               <div className="text-right hidden sm:flex flex-col font-body">
                 <span className="text-[11px] text-[#e3bfb2]">Subtotal</span>
                 <span
+                  suppressHydrationWarning
                   className="font-body text-[18px] font-bold text-[#fef8f4]"
                   id="cartTotalText"
                 >
-                  {cartTotal.toLocaleString("vi-VN")}đ
+                  {total.toLocaleString("vi-VN")}đ
                 </span>
               </div>
-              <button
-                type="button"
+              <Link
+                href="/cart"
                 className="h-12 px-6 rounded-xl bg-[#febc85] hover:bg-[#ffdcc2] text-[#78491d] text-[15px] font-bold flex items-center gap-1.5 transition-transform active:scale-95 shadow-md font-body"
                 id="checkoutBtn"
-                onClick={handleTriggerCheckout}
               >
-                <span>Pay &amp; Pick Up</span>
+                <span>{"Xem giỏ hàng".normalize("NFC")}</span>
                 <span className="material-symbols-outlined text-lg">
                   arrow_forward
                 </span>
-              </button>
+              </Link>
             </div>
           </div>
         </div>

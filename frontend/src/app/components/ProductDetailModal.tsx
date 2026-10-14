@@ -37,6 +37,16 @@ export interface ProductDetailModalProps {
    * If false, renders as full standalone page layout.
    */
   isModal?: boolean;
+  initialCustomization?: {
+    size?: "S" | "M" | "L";
+    temp?: "iced" | "hot";
+    sweetness?: string;
+    ice?: string;
+    toppings?: string[];
+    notes?: string;
+    quantity?: number;
+  };
+  actionLabel?: string;
 }
 
 const AVAILABLE_TOPPINGS: ToppingItem[] = [
@@ -72,6 +82,8 @@ export default function ProductDetailModal({
   onClose,
   onAddToCart,
   isModal = true,
+  initialCustomization,
+  actionLabel,
 }: ProductDetailModalProps) {
   // State for customization options
   const [selectedSize, setSelectedSize] = useState<"S" | "M" | "L">("M");
@@ -85,28 +97,47 @@ export default function ProductDetailModal({
   const [showToast, setShowToast] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string>("");
 
-  // Initialize or reset defaults when a new product is opened
+  // Initialize or reset defaults when a new product or initialCustomization is provided
   useEffect(() => {
     if (product) {
-      setSelectedSize("M");
-      // If product only supports hot, default to hot
-      if (
-        product.chips?.temps &&
-        product.chips.temps.length === 1 &&
-        product.chips.temps[0].toLowerCase().includes("hot")
-      ) {
-        setTemperature("hot");
+      if (initialCustomization) {
+        setSelectedSize(initialCustomization.size || "M");
+        setTemperature(initialCustomization.temp || "iced");
+        setSweetness(initialCustomization.sweetness || "100%");
+        setIceLevel(initialCustomization.ice || "Đá thường (100%)");
+        const matchingToppings = AVAILABLE_TOPPINGS.filter((t) =>
+          initialCustomization.toppings?.some(
+            (top) =>
+              top.toLowerCase().includes(t.name.toLowerCase()) ||
+              t.name.toLowerCase().includes(top.toLowerCase()) ||
+              top === t.id
+          )
+        ).map((t) => t.id);
+        setSelectedToppingIds(matchingToppings);
+        setBaristaNotes(initialCustomization.notes || "");
+        setQuantity(initialCustomization.quantity || 1);
+        setShowToast(false);
       } else {
-        setTemperature("iced");
+        setSelectedSize("M");
+        // If product only supports hot, default to hot
+        if (
+          product.chips?.temps &&
+          product.chips.temps.length === 1 &&
+          product.chips.temps[0].toLowerCase().includes("hot")
+        ) {
+          setTemperature("hot");
+        } else {
+          setTemperature("iced");
+        }
+        setSweetness("100%");
+        setIceLevel("Đá thường (100%)");
+        setSelectedToppingIds([]);
+        setBaristaNotes("");
+        setQuantity(1);
+        setShowToast(false);
       }
-      setSweetness("100%");
-      setIceLevel("Đá thường (100%)");
-      setSelectedToppingIds([]);
-      setBaristaNotes("");
-      setQuantity(1);
-      setShowToast(false);
     }
-  }, [product]);
+  }, [product, initialCustomization, isOpen]);
 
   // Close modal on Escape key
   useEffect(() => {
@@ -879,9 +910,9 @@ export default function ProductDetailModal({
               id="add-to-cart-btn"
             >
               <span className="material-symbols-outlined text-xl group-hover:rotate-12 transition-transform">
-                shopping_bag
+                {actionLabel ? "edit_note" : "shopping_bag"}
               </span>
-              <span>{"Thêm vào giỏ hàng • ".normalize("NFC")}</span>
+              <span>{`${actionLabel || "Thêm vào giỏ hàng"} • `}</span>
               <span className="text-[#febc85] font-extrabold">
                 {totalPrice.toLocaleString("vi-VN")}đ
               </span>

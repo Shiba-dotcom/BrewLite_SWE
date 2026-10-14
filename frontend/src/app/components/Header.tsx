@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import BrewLiteLogo from "./BrewLiteLogo";
@@ -21,6 +21,11 @@ export default function Header({
   badgeAnimated = false,
 }: HeaderProps) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleSearchInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -110,16 +115,21 @@ export default function Header({
           </button>
 
           <Link
-            href="/menu"
-            className={`flex items-center gap-1.5 bg-[#2c1810] hover:bg-[#351300] text-[#9e7e73] px-4 py-1.5 rounded-full transition-all active:scale-95 font-body ${
+            href="/cart"
+            className={`relative flex items-center gap-1.5 bg-[#2c1810] hover:bg-[#351300] text-[#9e7e73] px-4 py-1.5 rounded-full transition-all active:scale-95 font-body ${
               badgeAnimated ? "scale-105" : ""
             }`}
+            title={"Giỏ hàng".normalize("NFC")}
           >
             <span className="material-symbols-outlined text-xl text-white">
               shopping_bag
             </span>
-            <span className="text-[13px] font-bold text-white font-body">
-              {cartCount}
+            <span
+              className={`text-[13px] font-bold text-white font-body transition-transform ${
+                badgeAnimated ? "scale-125" : "scale-100"
+              }`}
+            >
+              {isMounted ? cartCount : 0}
             </span>
           </Link>
 
