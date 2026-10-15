@@ -6,7 +6,7 @@ import { CreateOrderDto } from './dto/create-order.dto.js';
 export class OrdersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createOrder(dto: CreateOrderDto) {
+  async createOrder(dto: CreateOrderDto, userId: number) {
     // Tính totalAmount server-side — không tin tưởng client
     const totalAmount = dto.items.reduce(
       (sum, item) => sum + item.unitPrice * item.quantity,
@@ -17,7 +17,7 @@ export class OrdersService {
       const newOrder = await tx.order.create({
         data: {
           totalAmount,
-          // userId nullable cho đến khi Task 7 (JWT auth) hoàn thành
+          userId, // ← lấy từ JWT payload (đã xác thực), không từ body
           items: {
             create: dto.items.map((item) => ({
               productId: item.productId,

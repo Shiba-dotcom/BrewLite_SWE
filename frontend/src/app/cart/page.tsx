@@ -28,6 +28,7 @@ import Footer from "../components/Footer";
 import ProductDetailModal, { CustomizationDetails } from "../components/ProductDetailModal";
 import { DEFAULT_PRODUCTS, Product } from "../menu/page";
 import { useCartStore, CartItem } from "../store/cartStore";
+import { useAuthStore, apiFetch } from "../store/authStore";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function vnd(n: number) {
@@ -699,6 +700,14 @@ export default function CartPage() {
 
   const handleCheckout = async () => {
     if (!displayItems.length) return;
+
+    // ── Auth Guard: redirect sang /login nếu chưa đăng nhập ──
+    const { isAuthenticated } = useAuthStore.getState();
+    if (!isAuthenticated) {
+      router.push("/login?redirect=/cart");
+      return;
+    }
+
     setCheckoutLoading(true);
     setCheckoutError(null);
     try {
@@ -712,9 +721,9 @@ export default function CartPage() {
           unitPrice: item.price,
         })),
       };
-      const res = await fetch("http://localhost:3001/orders", {
+      // apiFetch tự động đính kèm Authorization: Bearer <token>
+      const res = await apiFetch("/orders", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (!res.ok) {

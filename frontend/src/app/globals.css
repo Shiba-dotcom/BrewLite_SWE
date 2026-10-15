@@ -49,8 +49,8 @@
   --color-on-error: #ffffff;
   --color-on-error-container: #93000a;
 
-  --font-headline: var(--font-epilogue), "Epilogue", Georgia, serif;
-  --font-display: var(--font-epilogue), "Epilogue", Georgia, serif;
+  --font-headline: var(--font-epilogue), "Epilogue", var(--font-jakarta), "Plus Jakarta Sans", sans-serif;
+  --font-display: var(--font-epilogue), "Epilogue", var(--font-jakarta), "Plus Jakarta Sans", sans-serif;
   --font-body: var(--font-jakarta), "Plus Jakarta Sans", sans-serif;
   --font-label: var(--font-jakarta), "Plus Jakarta Sans", sans-serif;
 }
@@ -68,11 +68,11 @@ body {
 }
 
 .font-headline {
-  font-family: var(--font-epilogue), "Epilogue", Georgia, serif;
+  font-family: var(--font-epilogue), "Epilogue", var(--font-jakarta), "Plus Jakarta Sans", sans-serif;
 }
 
 .font-display {
-  font-family: var(--font-epilogue), "Epilogue", Georgia, serif;
+  font-family: var(--font-epilogue), "Epilogue", var(--font-jakarta), "Plus Jakarta Sans", sans-serif;
 }
 
 .font-body {
