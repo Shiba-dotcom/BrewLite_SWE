@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
 
@@ -42,4 +46,40 @@ export class OrdersService {
       items: order.items,
     };
   }
+
+  /**
+   * Lấy chi tiết đơn hàng theo ID (Task 8)
+   * Kiểm tra quyền sở hữu đơn hàng (order.userId === userId)
+   */
+  async getOrderById(orderId: number, userId: number) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: true,
+        payments: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng với mã #${orderId}`);
+    }
+
+    if (order.userId !== null && order.userId !== userId) {
+      throw new ForbiddenException('Bạn không có quyền truy cập vào đơn hàng này');
+    }
+
+    return {
+      id: order.id,
+      orderId: order.id,
+      status: order.status,
+      totalAmount: order.totalAmount,
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt,
+      items: order.items,
+      payments: order.payments,
+    };
+  }
 }
+

@@ -731,7 +731,7 @@ export default function CartPage() {
         throw new Error(err?.message ?? `Lỗi máy chủ (${res.status})`);
       }
       const data = await res.json();
-      clearCart();
+      // Giữ nguyên giỏ hàng cho đến khi thanh toán thành công ở màn hình Checkout
       router.push(`/checkout?orderId=${data.orderId}`);
     } catch (e: unknown) {
       setCheckoutError(e instanceof Error ? e.message : "Đặt hàng thất bại, vui lòng thử lại.");

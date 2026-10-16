@@ -22,6 +22,17 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum PaymentMethod {
+  EWALLET
+  BANK_CARD
+}
+
+enum PaymentStatus {
+  SUCCESS
+  FAILED
+  PENDING
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model Product {
@@ -52,6 +63,7 @@ model Order {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   items       OrderItem[]
+  payments    Payment[]
 }
 
 model OrderItem {
@@ -64,4 +76,15 @@ model OrderItem {
   toppings    String[] // danh sách tên topping
   quantity    Int
   unitPrice   Float
+}
+
+model Payment {
+  id             Int           @id @default(autoincrement())
+  orderId        Int
+  order          Order         @relation(fields: [orderId], references: [id])
+  idempotencyKey String?       @unique
+  amount         Float
+  method         PaymentMethod
+  status         PaymentStatus
+  createdAt      DateTime      @default(now())
 }

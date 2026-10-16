@@ -53,6 +53,7 @@
   --font-display: var(--font-epilogue), "Epilogue", var(--font-jakarta), "Plus Jakarta Sans", sans-serif;
   --font-body: var(--font-jakarta), "Plus Jakarta Sans", sans-serif;
   --font-label: var(--font-jakarta), "Plus Jakarta Sans", sans-serif;
+  --font-serif: var(--font-serif), "Playfair Display", "Noto Serif", Georgia, serif;
 }
 
 :root {

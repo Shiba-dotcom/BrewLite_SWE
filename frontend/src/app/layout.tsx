@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Epilogue, Plus_Jakarta_Sans } from "next/font/google";
+import { Epilogue, Plus_Jakarta_Sans, Playfair_Display } from "next/font/google";
 import "./globals.css";
 
 const epilogue = Epilogue({
@@ -13,6 +13,13 @@ const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
   subsets: ["vietnamese", "latin"],
   weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+const playfair = Playfair_Display({
+  variable: "--font-serif",
+  subsets: ["vietnamese", "latin"],
+  weight: ["500", "600", "700", "800"],
   display: "swap",
 });
 
@@ -31,7 +38,7 @@ export default function RootLayout({
     <html
       lang="vi"
       suppressHydrationWarning
-      className={`${epilogue.variable} ${plusJakarta.variable}`}
+      className={`${epilogue.variable} ${plusJakarta.variable} ${playfair.variable}`}
     >
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
