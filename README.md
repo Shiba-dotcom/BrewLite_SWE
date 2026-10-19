@@ -1,6 +1,6 @@
 # BrewLite ☕ — Cashless Coffee Ordering System
 
-Ứng dụng web đặt và thanh toán cà phê không dùng tiền mặt, xây dựng theo mô hình **Agile Scrum (Sprint 1 – Sprint 3)** với giao diện người dùng cao cấp bám sát chuẩn thiết kế **Google Stitch**.
+Ứng dụng web đặt và thanh toán cà phê không dùng tiền mặt, xây dựng theo mô hình **Agile Scrum (Sprint 1 – Sprint 3)** với giao diện người dùng hiện đại, tối ưu trải nghiệm và tương thích đa thiết bị.
 
 ---
 
@@ -29,7 +29,7 @@
 - Giỏ hàng trực quan, hỗ trợ áp dụng mã giảm giá ưu đãi.
 - Đặt hàng và thanh toán điện tử không tiền mặt (MoMo, NAPAS, Visa/MasterCard, Apple Pay, Google Wallet).
 - Chống thanh toán trùng lặp (Payment Idempotency) và giải quyết xung đột đồng thời (Optimistic Locking).
-- Tích lũy điểm thành viên **Hạt Vàng** (1.000 VNĐ = 1 điểm) và quản lý thẻ thành viên qua slide-over Drawer hiện đại theo chuẩn Google Stitch.
+- Tích lũy điểm thành viên **Hạt Vàng** (1.000 VNĐ = 1 điểm) và quản lý thẻ thành viên, đổi ưu đãi qua slide-over Drawer tiện lợi.
 - Quản lý trạng thái vòng đời đơn hàng chặt chẽ qua Finite State Machine (`PENDING → PAID → PREPARING → READY → COMPLETED`).
 
 ---
@@ -38,7 +38,7 @@
 
 | Thành phần | Công nghệ | Phiên bản / Thư viện chính | Ghi chú |
 |---|---|---|---|
-| **Frontend** | Next.js (App Router, Turbopack) | React 19, TypeScript, TailwindCSS v4, Zustand | Giao diện chuẩn Google Stitch, responsive |
+| **Frontend** | Next.js (App Router, Turbopack) | React 19, TypeScript, TailwindCSS v4, Zustand | Giao diện hiện đại, trực quan, responsive |
 | **Backend** | NestJS | TypeScript, REST API, Passport JWT, class-validator | Kiến trúc Modular, Dependency Injection |
 | **Database & ORM** | PostgreSQL 16 & Prisma ORM | Prisma 6, Prisma Client, ACID Transactions | Quan hệ 1-N, N-N, Indexing, Optimistic Concurrency |
 | **Payment Gateway** | Mock Payment Gateway Service | MoMo, NAPAS, Visa/MasterCard, Apple Pay, Google Wallet | Hỗ trợ cờ thử nghiệm lỗi `simulateFailure` |
@@ -269,7 +269,7 @@ Sau khi chạy lệnh `prisma db seed`, hệ thống đã có sẵn tài khoản
    - Bấm **"Xác nhận thanh toán"**. Hệ thống gửi kèm `Idempotency-Key` bảo vệ chống trừ tiền hai lần và áp dụng Optimistic Locking.
 6. **Hóa đơn điện tử (`/order-confirmation`):** Xem mã QR nhận món, mã định danh đơn hàng và số Hạt Vàng vừa tích lũy.
 7. **Lịch sử đơn hàng (`/orders`):** Xem lại toàn bộ các đơn hàng đã đặt kèm trạng thái thực tế.
-8. **Thẻ thành viên Google Stitch Drawer:** Bấm vào **Avatar** hoặc huy hiệu **⭐ X Hạt Vàng** ở góc phải thanh Header:
+8. **Thẻ thành viên & Đổi ưu đãi (Drawer):** Bấm vào **Avatar** hoặc huy hiệu **⭐ X Hạt Vàng** ở góc phải thanh Header:
    - Xem số dư Hạt Vàng hiện tại.
    - Xem tiến trình tích lũy nâng hạng thẻ (Đồng → Bạc → Vàng → Kim Cương).
    - Đổi các mã ưu đãi độc quyền trực tiếp từ điểm tích lũy.
@@ -346,11 +346,11 @@ Dự án đã hoàn thành **100%** toàn bộ 10 nhiệm vụ trong cả 3 Spri
 - **Sprint 3 (Thanh Toán Không Tiền Mặt, Bàn Giao & Nghiệp Vụ Nâng Cao):**
   - [x] **Task 8:** Thanh toán không tiền mặt tích hợp Mock Payment Gateway, cờ `simulateFailure`.
   - [x] **Task 9:** Màn hình xác nhận đơn hàng, hóa đơn điện tử e-receipt, lịch sử `GET /orders/me` và Dockerfile đa tầng.
-  - [x] **Task 10:** Nghiệp vụ Backend nâng cao & Thẻ thành viên Google Stitch:
+  - [x] **Task 10:** Nghiệp vụ Backend nâng cao & Thẻ thành viên Drawer:
     - Finite State Machine Guard (`assertTransition`) & route `PATCH /orders/:id/status`.
     - Kiểm soát xung đột đồng thời với Optimistic Locking (`version` column).
     - Payment Idempotency Key bảo vệ giao dịch thanh toán trùng lặp.
-    - Hệ thống tích lũy điểm thưởng Hạt Vàng & Thẻ thành viên Drawer bám sát thiết kế Google Stitch.
+    - Hệ thống tích lũy điểm thưởng Hạt Vàng & Thẻ thành viên Drawer trực quan, sinh động.
     - Xử lý mã giảm giá Voucher (`BREW10`, `BREWCOZY`, `BREW20`) an toàn phía máy chủ.
 
 ---
