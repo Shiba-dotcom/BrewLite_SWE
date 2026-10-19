@@ -69,7 +69,7 @@ export default function Header({
               {"Thực đơn".normalize("NFC")}
             </Link>
             <Link
-              href="#"
+              href="/orders"
               className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors font-body ${
                 activeTab === "orders"
                   ? "bg-[#2C1810] text-[#FEF8F4]"

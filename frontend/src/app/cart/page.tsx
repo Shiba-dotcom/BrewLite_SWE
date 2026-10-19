@@ -35,31 +35,30 @@ function vnd(n: number) {
   return n.toLocaleString("vi-VN") + "đ";
 }
 
-const FALLBACK_IMG =
-  "https://images.unsplash.com/photo-1485808191679-5f86510681a2?auto=format&fit=crop&w=400&q=85";
+const FALLBACK_IMG = "/images/products/ca-phe-sua.png";
 
-/** Suggested add-on items */
+/** Suggested add-on items (Các bánh đang có trong đồ án) */
 const SUGGESTED = [
   {
-    id: 7,
-    name: "Pain au Chocolat",
-    desc: "Bánh bơ xốp phủ socola Bỉ".normalize("NFC"),
-    price: 45000,
-    img: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=400&q=85",
-  },
-  {
     id: 8,
-    name: "Honey Cruffin",
-    desc: "Croissant-muffin quế mật ong".normalize("NFC"),
-    price: 49000,
-    img: "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=85",
+    name: "Bánh Pain au Chocolat",
+    desc: "Vỏ ngàn lớp giòn xốp ôm thanh socola Bỉ".normalize("NFC"),
+    price: 39000,
+    img: "/images/products/pain-au-chocolat.png",
   },
   {
-    id: 5,
-    name: "Uji Matcha",
-    desc: "Matcha Kyoto đánh bọt mịn".normalize("NFC"),
-    price: 62000,
-    img: "https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=400&q=85",
+    id: 9,
+    name: "Basque Burnt Cheesecake",
+    desc: "Phô mai nướng cháy xém phong cách xứ Basque".normalize("NFC"),
+    price: 45000,
+    img: "/images/products/basque-burnt-cheesecake.png",
+  },
+  {
+    id: 10,
+    name: "Classic Tiramisu",
+    desc: "Cốt ladyfinger đẫm espresso & mascarpone".normalize("NFC"),
+    price: 49000,
+    img: "/images/products/classic-tiramisu.png",
   },
 ];
 

@@ -40,141 +40,215 @@ export function normalizeStitchImageUrl(
   quality = 85
 ): string {
   if (!url) return "";
+  if (url.startsWith("/") || !url.startsWith("http")) return url;
   const baseUrl = url.split("?")[0];
   return `${baseUrl}?auto=format&fit=crop&w=${width}&q=${quality}`;
 }
 
-// 100% Original Google Stitch Menu Image URLs with Unicode NFC normalization
+// Real Product Menu with Local Images & NFC normalization
 export const DEFAULT_PRODUCTS: Product[] = [
   {
     id: 1,
-    name: "Caramel Macchiato Reserve".normalize("NFC"),
+    name: "Cà phê Đen".normalize("NFC"),
     description:
-      "Steamed whole milk marked with rich espresso and house vanilla-bean syrup, topped with artisanal caramel drizzle.".normalize("NFC"),
-    imageUrl: normalizeStitchImageUrl(
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuA_8EBLwt4L_ogs45tFoeX2AschBMIQ_8zY6opY-Eo1aVwHvjo92b6GCbAsFksc6fIQ4iISU3QZEA523zpFBnW20VnhXfqht9V1r6uKbV-Wgo4u45SMg-e59aYqC-6hJT1NPkhN2yznsKQxa-0L2fr56Cpi5lbcNIm_PZiEc_HE9tk-7cjMoEfSd3Ec-wx--HraiLRApcSq3-J9nTz8mOKcZWc6OYrZfdI6lAZWFZ8Xh4C8DzLPdnqgvw",
-      1200,
-      85
-    ),
-    basePrice: 55000,
-    category: "espresso",
+      "Chiết xuất từ hạt Robusta và Arabica rang đậm mộc, mang vị đắng êm sâu lắng, hậu vị thanh nhẹ và hương thơm nồng nàn nguyên bản.".normalize("NFC"),
+    imageUrl: "/images/products/ca-phe-den.png",
+    basePrice: 29000,
+    category: "vietnamese",
     rating: 4.9,
-    tag: "Best Seller",
-    chips: { temps: ["Hot", "Iced"], note: "Oat +10k" },
+    tag: "Đậm đà",
+    chips: { temps: ["Hot", "Iced"], note: "Robusta mộc" },
   },
   {
     id: 2,
-    name: "Cà Phê Muối (Salt Cream)".normalize("NFC"),
+    name: "Cà phê Sữa".normalize("NFC"),
     description:
-      "Traditional phin dark roast dripped over sweet condensed milk, crowned with velvety Himalayan sea salt foam.".normalize("NFC"),
-    imageUrl: normalizeStitchImageUrl(
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuD2JHwtuaag4QucnWVi7Y7MUa97Oa25ednCYpE9HesjYisLJPn52FXu4y9UmqEkp6pj9v-hz_NkYrBcaUDUqZutKdNeQfz44YJudhYnGwN2F2QbQJ4Ew4V6ius1rRiBS2jRq4FcC-eo33ZyRyzgz6qNp5c2b__fcruyRFBrDwysBzRjAXAdBBxq5UqYD6ZYpv2mGBba9Vqto-2K5Co7yBLzDx1WJPfJxGR2T0n0Ywh77dzXjUxPPxdmgw",
-      1200,
-      85
-    ),
-    basePrice: 48000,
+      "Sự kết hợp kinh điển giữa cà phê pha phin truyền thống đậm đà và sữa đặc sánh mịn. Từng giọt cà phê loang tự nhiên qua đá viên tạo nên vị ngọt béo, đắng dịu hài hòa.".normalize("NFC"),
+    imageUrl: "/images/products/ca-phe-sua.png",
+    basePrice: 35000,
     category: "vietnamese",
     rating: 5.0,
-    tag: "House Special",
-    chips: { temps: ["Iced"], note: "Must Try" },
+    tag: "Truyền thống",
+    chips: { temps: ["Hot", "Iced"], note: "Phin truyền thống" },
   },
   {
     id: 3,
-    name: "Classic Cà Phê Sữa Đá".normalize("NFC"),
+    name: "Cà phê Bạc Xỉu".normalize("NFC"),
     description:
-      "Bold Vietnamese Robusta slow-drip with creamy condensed milk over cracked ice. Pure morning rocket fuel.".normalize("NFC"),
-    imageUrl: normalizeStitchImageUrl(
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCIZbB44qRVY1pyms6hOvSr9FoI6TNLvTSLrvKivyLo8k7gdRn4qJsmBBo3bGbGlKCEsB8JKZE2_I8ZxbmMjYuk0grsZYxa2ar_y6VY3RRtljQ06oax3w2G9JFc-kSGXM286bXbhzANA_ouqa7FyF3I5WmEOPMSODzvZBS_XK26iw0LuRqi4n9wLTA0rNm7ptRKlDNkhR5nxtCM6nx9o7aPSXMpDjWV22IeQNOOre4wh_HE0i6NzoD_Ig",
-      1200,
-      85
-    ),
-    basePrice: 42000,
+      "Dòng sữa tươi thanh béo quyện cùng chút sữa đặc ngọt dịu, điểm xuyết một lớp cà phê phin thơm nhẹ trên bề mặt, mang hương vị dịu êm, ngậy béo và dễ uống.".normalize("NFC"),
+    imageUrl: "/images/products/ca-phe-bac-xiu.png",
+    basePrice: 39000,
     category: "vietnamese",
-    rating: 4.8,
-    tag: "Classic",
-    chips: { temps: ["Iced"], note: "Strong 100% Robusta" },
+    rating: 4.9,
+    tag: "Béo ngậy",
+    chips: { temps: ["Hot", "Iced"], note: "Dịu ngọt êm ái" },
   },
   {
     id: 4,
-    name: "Oat Vanilla Flat White".normalize("NFC"),
+    name: "Cà phê Muối".normalize("NFC"),
     description:
-      "Double ristretto pulled over silky steamed Minor Figures oat milk with Madagascar vanilla infusion.".normalize("NFC"),
-    imageUrl: normalizeStitchImageUrl(
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCtdVLAuVwn3W30RG7ADA9LppEh84asRJjxxbS8ExVvJ9ePRFhi0xDMPqGcCNR0Xgt4JKw3aqbExtxBy1XnkQIWw9L5cI1T1zMSXxt107TxP2gqhaZ4CdQ9UcHMYTwJl95SKNSII0Khv8LRlqI5MV247TzN6AGA1xwKWT1L_lsra3jdIQvJvp5S3OVk3Fm1dcb4YF8_7WeBmqYWZ-lKdqyrreGxELCBYH9oVVmTUnsXWJrcfjA1k8naHw",
-      1200,
-      85
-    ),
-    basePrice: 58000,
-    category: "espresso",
-    rating: 4.9,
-    tag: "Dairy-Free",
-    chips: { temps: ["Hot", "Iced"], note: "Minor Figures Oat" },
+      "Nền cà phê sữa đá đậm vị hòa quyện cùng lớp kem bọt muối biển sánh mịn, béo mặn bồng bềnh bên trên, rắc nhẹ bột cacao nguyên chất tạo điểm nhấn tròn vị.".normalize("NFC"),
+    imageUrl: "/images/products/ca-phe-muoi.png",
+    basePrice: 42000,
+    category: "vietnamese",
+    rating: 5.0,
+    tag: "Đặc sản",
+    chips: { temps: ["Iced"], note: "Kem muối biển" },
   },
   {
     id: 5,
-    name: "Uji Ceremonial Matcha".normalize("NFC"),
+    name: "Iced Caramel Macchiato".normalize("NFC"),
     description:
-      "Stone-ground Kyoto matcha whisked to frothy perfection with sweet milk and honey blossom touch.".normalize("NFC"),
-    imageUrl: normalizeStitchImageUrl(
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuAiE5Lnsoqr00TOxeH6JbCtiLIMXU53k3x_8dVFtt4DLQoZXZiJt2xGNoH0GatOy9jsGUDKGlrQ5Mgc5FVlK3vnvBUECMo4iv8TNhHguSKQeYkieX3T5CZX31qPygR9_vIPbFPSQRuwO-2ZLbuG1NCPEUot3O9UH8BA9-KUSqcgX6R_OUzMQT5Q76jC6QpGYSLjCdglVawFlWj7_DT_7zFtMHNVAZH094b--RuESwBWmkMEaXRa80wZhA",
-      1200,
-      85
-    ),
-    basePrice: 62000,
-    category: "tea",
+      "Cà phê espresso phân tầng tinh tế cùng sữa tươi mát lạnh và siro vani ngọt dịu, phủ lớp bọt sữa dày mịn đan xen những đường sốt caramel vàng óng thơm ngậy.".normalize("NFC"),
+    imageUrl: "/images/products/iced-caramel-macchiato.png",
+    basePrice: 49000,
+    category: "espresso",
     rating: 4.9,
-    tag: "Kyoto Harvest",
-    chips: { temps: ["Hot", "Iced"], note: "100% Ceremonial" },
+    tag: "Signature",
+    chips: { temps: ["Hot", "Iced"], note: "Caramel vàng óng" },
   },
   {
     id: 6,
-    name: "Slow Steep Cold Brew Tonic".normalize("NFC"),
+    name: "Matcha Latte Uji".normalize("NFC"),
     description:
-      "20-hour steeped Ethiopian Yirgacheffe paired with craft citrus tonic and fresh rosemary sprig.".normalize("NFC"),
-    imageUrl: normalizeStitchImageUrl(
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBvi7mwkGjo8B2m4ZEOPwf_W1V5kQW9RKL2IAzXEv-SovTKDzVK0OD3esYCJwXSchv_Auh1G6RvQTVeKrCkQY6bRd-fDxl12w3FI6dvckC4PZkQ0E3Gq38alWt9ALwObNXSoFBNdlwZADsNzJR5PAj2uH3QjCkEIBre66qoBJxTD3aoIM4IZ_FqajrFQ6Ul6fQCmW6cvf86krzVrHWzIW6pge0erDsCSdtHCZ7asAbiQ_33atiaWm1LFQ",
-      1200,
-      85
-    ),
-    basePrice: 52000,
-    category: "coldbrew",
-    rating: 4.7,
-    tag: "Refreshing",
-    chips: { temps: ["Iced"], note: "20-Hour Steep" },
+      "Bột trà xanh Uji cao cấp từ Nhật Bản được đánh bọt mịn màng, hòa cùng dòng sữa tươi béo nhẹ. Thức uống mang sắc xanh ngọc bích, vị chát thanh dịu và hậu ngọt êm ái.".normalize("NFC"),
+    imageUrl: "/images/products/matcha-latte.png",
+    basePrice: 49000,
+    category: "tea",
+    rating: 4.9,
+    tag: "Uji Kyoto",
+    chips: { temps: ["Hot", "Iced"], note: "100% Ceremonial" },
   },
   {
     id: 7,
-    name: "Pain au Chocolat Artisanal".normalize("NFC"),
+    name: "Trà Đào Cam Sả".normalize("NFC"),
     description:
-      "Flaky 72-layer European butter pastry folded with Belgian dark chocolate batons, baked warm hourly.".normalize("NFC"),
-    imageUrl: normalizeStitchImageUrl(
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBg1Snf5xKAHwsFb3AqGzFsIyAaA6rVyxccMAj32IMZM49P-x3J3U8c5UUydATlynLAV8KkSaPJ0F9UWXYbLTsTgTz8sl8-VBFc_PbXeTgFHeEUGp5i2D_lRhjw7KllS9UmddcRjvmLkRFEsQjjQLqQ2oh-m3miKrt9TZ5t5P5EKq5blQv0spatX_IaiO00YQ6NsYgBn75zcJcigcXh6jiIGtWCAwN5xquUofdDjW2xRW8woBkfpJPbpg",
-      1200,
-      85
-    ),
+      "Nền trà đen ủ lạnh ngát hương sả tươi tự nhiên, kết hợp cùng vị chua ngọt sảng khoái của tép cam vàng tươi và miếng đào giòn mọng, giúp thanh nhiệt tức thì.".normalize("NFC"),
+    imageUrl: "/images/products/tra-dao-cam-sa.png",
     basePrice: 45000,
-    category: "bakery",
-    rating: 5.0,
-    tag: "Warm Hourly",
-    chips: { note: "🔥 Warmed Up" },
+    category: "tea",
+    rating: 4.8,
+    tag: "Thanh nhiệt",
+    chips: { temps: ["Iced"], note: "Cam vàng & Đào tươi" },
   },
   {
     id: 8,
-    name: "Cinnamon Honey Cruffin".normalize("NFC"),
+    name: "Bánh Pain au Chocolat".normalize("NFC"),
     description:
-      "Hybrid croissant-muffin rolled in spiced Saigon cinnamon sugar with molten dulce de leche core.".normalize("NFC"),
-    imageUrl: normalizeStitchImageUrl(
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCMz8IYuZoecp2xaPKI20CiinmOzxoESWdFVpAYHSscIdmg0tH_JPyYS5qcemcSUQfY982Pb_3fEc3Bqw3dZwtfhfne_AlsG6wJm0l4aZaxTu0yCpk9hQ_gkqEfWY_mDl63LJM5hTfq8ev3oHht07uMu2gIKcQ2hsoMHCgmqAOGmLrnwqP37rWNrzd6JYQrHPOLCtjL-Ee5NzysLlJ2bcf4TZ8ajcc9tdFm4bKCfrm0po0PFoQE5dAOMQ",
-      1200,
-      85
-    ),
-    basePrice: 49000,
+      "Lớp vỏ bánh ngàn lớp xốp giòn ôm trọn hai thanh sô-cô-la đen đậm vị tan chảy ở giữa. Sự kết hợp hoàn hảo giữa độ giòn béo của bơ và vị đắng ngọt tinh tế.".normalize("NFC"),
+    imageUrl: "/images/products/pain-au-chocolat.png",
+    basePrice: 39000,
     category: "bakery",
     rating: 4.9,
-    tag: "Chef Pick",
-    chips: { note: "✨ Fresh Batch" },
+    tag: "Bơ Pháp & Socola",
+    chips: { note: "🔥 Nướng thơm giòn" },
+  },
+  {
+    id: 9,
+    name: "Basque Burnt Cheesecake".normalize("NFC"),
+    description:
+      "Bánh phô mai nướng cháy xém bề mặt theo phong cách xứ Basque, đượm hương caramel nướng đặc trưng. Cốt bánh mềm ngậy, mịn tan và có hậu chua thanh nhẹ từ kem phô mai.".normalize("NFC"),
+    imageUrl: "/images/products/basque-burnt-cheesecake.png",
+    basePrice: 45000,
+    category: "bakery",
+    rating: 5.0,
+    tag: "Xứ Basque",
+    chips: { note: "✨ Phô mai nướng cháy" },
+  },
+  {
+    id: 10,
+    name: "Classic Tiramisu".normalize("NFC"),
+    description:
+      "Cốt bánh ladyfinger mềm mại thấm đẫm cà phê espresso đậm đặc, xen kẽ các lớp kem phô mai mascarpone béo mịn và phủ bề mặt bằng lớp bột cacao thơm bùi, đắng nhẹ.".normalize("NFC"),
+    imageUrl: "/images/products/classic-tiramisu.png",
+    basePrice: 49000,
+    category: "bakery",
+    rating: 5.0,
+    tag: "Ý truyền thống",
+    chips: { note: "☕ Thấm đẫm Espresso" },
   },
 ];
+
+export function getProductMetadata(name: string): {
+  category: string;
+  tag?: string;
+  rating?: number;
+  chips?: { temps?: string[]; note?: string };
+} {
+  const n = name.toLowerCase();
+  if (
+    n.includes("đen") ||
+    n.includes("sữa") ||
+    n.includes("bạc xỉu") ||
+    n.includes("muối") ||
+    n.includes("phin")
+  ) {
+    return {
+      category: "vietnamese",
+      tag: n.includes("muối")
+        ? "Đặc sản"
+        : n.includes("bạc xỉu")
+        ? "Béo ngậy"
+        : n.includes("đen")
+        ? "Đậm đà"
+        : "Truyền thống",
+      rating: 4.9,
+      chips: {
+        temps: n.includes("muối") ? ["Iced"] : ["Hot", "Iced"],
+        note: "Phin Robusta",
+      },
+    };
+  }
+  if (
+    n.includes("macchiato") ||
+    n.includes("espresso") ||
+    n.includes("cappuccino") ||
+    (n.includes("latte") && !n.includes("matcha"))
+  ) {
+    return {
+      category: "espresso",
+      tag: "Signature",
+      rating: 4.9,
+      chips: { temps: ["Hot", "Iced"], note: "Espresso mộc" },
+    };
+  }
+  if (n.includes("matcha") || n.includes("trà") || n.includes("tea")) {
+    return {
+      category: "tea",
+      tag: n.includes("matcha") ? "Uji Kyoto" : "Thanh nhiệt",
+      rating: 4.8,
+      chips: {
+        temps: n.includes("matcha") ? ["Hot", "Iced"] : ["Iced"],
+        note: n.includes("matcha") ? "100% Ceremonial" : "Cam đào tươi",
+      },
+    };
+  }
+  if (
+    n.includes("bánh") ||
+    n.includes("croissant") ||
+    n.includes("pain") ||
+    n.includes("cake") ||
+    n.includes("tiramisu") ||
+    n.includes("cheesecake")
+  ) {
+    return {
+      category: "bakery",
+      tag: n.includes("cheesecake")
+        ? "Xứ Basque"
+        : n.includes("tiramisu")
+        ? "Ý truyền thống"
+        : "Nướng giòn",
+      rating: 5.0,
+      chips: { note: "🔥 Nướng thơm giòn" },
+    };
+  }
+  return {
+    category: "vietnamese",
+    tag: "Phổ biến",
+    rating: 4.8,
+    chips: { temps: ["Hot", "Iced"] },
+  };
+}
 
 const CATEGORIES = [
   { id: "all", label: "All Items" },
@@ -223,12 +297,19 @@ export default function MenuPage() {
         if (isMounted) {
           if (Array.isArray(data) && data.length > 0) {
             setProducts(
-              data.map((p) => ({
-                ...p,
-                name: p.name.normalize("NFC"),
-                description: p.description ? p.description.normalize("NFC") : null,
-                imageUrl: normalizeStitchImageUrl(p.imageUrl, 1200, 85),
-              }))
+              data.map((p) => {
+                const meta = getProductMetadata(p.name);
+                return {
+                  ...p,
+                  name: p.name.normalize("NFC"),
+                  description: p.description ? p.description.normalize("NFC") : null,
+                  imageUrl: normalizeStitchImageUrl(p.imageUrl, 1200, 85),
+                  category: p.category || meta.category,
+                  tag: p.tag || meta.tag,
+                  rating: p.rating || meta.rating,
+                  chips: p.chips || meta.chips,
+                };
+              })
             );
           } else {
             setProducts(DEFAULT_PRODUCTS);

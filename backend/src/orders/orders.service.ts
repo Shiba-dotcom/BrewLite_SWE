@@ -48,6 +48,32 @@ export class OrdersService {
   }
 
   /**
+   * Lấy danh sách toàn bộ đơn hàng của user (Task 9 — GET /orders/me)
+   */
+  async getMyOrders(userId: number) {
+    const orders = await this.prisma.order.findMany({
+      where: { userId },
+      include: {
+        items: true,
+        payments: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return orders.map((order) => ({
+      id: order.id,
+      status: order.status,
+      totalAmount: order.totalAmount,
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt,
+      items: order.items,
+      payments: order.payments,
+    }));
+  }
+
+  /**
    * Lấy chi tiết đơn hàng theo ID (Task 8)
    * Kiểm tra quyền sở hữu đơn hàng (order.userId === userId)
    */

@@ -56,7 +56,8 @@ export const useAuthStore = create<AuthState>()(
 
 // ─── API helper với Bearer Token ─────────────────────────────────────────────
 
-const API_BASE = "http://localhost:3001";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 /** Gọi API Backend với Authorization header tự động */
 export async function apiFetch(

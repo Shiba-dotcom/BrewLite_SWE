@@ -31,6 +31,16 @@ export class OrdersController {
   }
 
   /**
+   * GET /orders/me — Lịch sử đơn hàng của user đang đăng nhập (Task 9)
+   * Phải đặt TRƯỚC :id để NestJS không hiểu 'me' là param
+   */
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  getMyOrders(@Request() req: AuthRequest) {
+    return this.ordersService.getMyOrders(req.user.userId);
+  }
+
+  /**
    * GET /orders/:id — Lấy chi tiết đơn hàng cho màn hình Checkout
    * Yêu cầu JWT Bearer Token, kiểm tra quyền sở hữu đơn hàng
    */

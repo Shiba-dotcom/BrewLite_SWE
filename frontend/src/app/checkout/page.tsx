@@ -55,8 +55,7 @@ function AppleLogo({ className = "h-4 w-auto fill-current inline-block" }: { cla
   );
 }
 
-const FALLBACK_DRINK_IMG =
-  "https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=600&q=85";
+const FALLBACK_DRINK_IMG = "/images/products/ca-phe-sua.png";
 
 interface OrderItem {
   id: number;
