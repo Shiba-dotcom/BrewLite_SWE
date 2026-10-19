@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -18,6 +19,7 @@ function safeUser(u: {
   email: string;
   fullName: string | null;
   phone: string | null;
+  loyaltyPoints: number;
   createdAt: Date;
 }) {
   return {
@@ -25,6 +27,7 @@ function safeUser(u: {
     email: u.email,
     fullName: u.fullName,
     phone: u.phone,
+    loyaltyPoints: u.loyaltyPoints,
     createdAt: u.createdAt,
   };
 }
@@ -96,5 +99,22 @@ export class AuthService {
       accessToken,
       user: safeUser(user),
     };
+  }
+
+  // ─── Get Profile ─────────────────────────────────────────────────────────────
+
+  /**
+   * Lấy thông tin user hiện tại kèm loyaltyPoints (Task 10)
+   */
+  async getProfile(userId: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User không tồn tại');
+    }
+
+    return safeUser(user);
   }
 }

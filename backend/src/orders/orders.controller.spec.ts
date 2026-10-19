@@ -9,6 +9,7 @@ describe('OrdersController', () => {
     createOrder: ReturnType<typeof vi.fn>;
     getMyOrders: ReturnType<typeof vi.fn>;
     getOrderById: ReturnType<typeof vi.fn>;
+    updateOrderStatus: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
@@ -16,6 +17,7 @@ describe('OrdersController', () => {
       createOrder: vi.fn(),
       getMyOrders: vi.fn(),
       getOrderById: vi.fn(),
+      updateOrderStatus: vi.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -42,5 +44,20 @@ describe('OrdersController', () => {
     await controller.getMyOrders(mockReq as any);
 
     expect(service.getMyOrders).toHaveBeenCalledWith(5);
+  });
+
+  it('updateOrderStatus should call service.updateOrderStatus with orderId, status, and userId', async () => {
+    const mockReq = { user: { userId: 7, email: 'barista@brewlite.com' } };
+    const mockResult = { orderId: 10, status: 'PREPARING' };
+    service.updateOrderStatus.mockResolvedValue(mockResult);
+
+    const result = await controller.updateOrderStatus(
+      mockReq as any,
+      10,
+      { status: 'PREPARING' as any },
+    );
+
+    expect(service.updateOrderStatus).toHaveBeenCalledWith(10, 'PREPARING', 7);
+    expect(result).toEqual(mockResult);
   });
 });

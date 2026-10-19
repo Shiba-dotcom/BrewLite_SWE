@@ -1,5 +1,5 @@
 import {
-  BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -11,6 +11,9 @@ import { CreatePaymentDto } from './dto/create-payment.dto.js';
 import { MockPaymentService } from './mock-payment.service.js';
 import { assertTransition } from './state-machine.helper.js';
 
+/** Ty le quy doi Hat Vang (Task 10): 1.000 VND = 1 diem */
+const POINTS_PER_VND = 1000;
+
 export interface PaymentResponse {
   success: boolean;
   paymentId: number;
@@ -21,6 +24,7 @@ export interface PaymentResponse {
   method: string;
   transactionId?: string;
   isIdempotent?: boolean;
+  pointsEarned?: number;
   message: string;
 }
 
@@ -34,79 +38,78 @@ export class PaymentsService {
   ) {}
 
   /**
-   * Xử lý thanh toán đơn hàng (Task 8)
-   * Tích hợp State Machine Guard & Idempotency Key (chuẩn bị Task 10)
+   * Xu ly thanh toan don hang
+   * Task 8: State Machine Guard + Idempotency Key
+   * Task 10: Optimistic Locking + Loyalty Points (Hat Vang)
    */
   async processPayment(
     dto: CreatePaymentDto,
     userId: number,
     idempotencyKey?: string,
   ): Promise<PaymentResponse> {
-    // 1. Kiểm tra Idempotency: Nếu key đã tồn tại và giao dịch trước đã SUCCESS -> trả về kết quả cũ
+    // 1. Kiem tra Idempotency: Neu key da ton tai va giao dich truoc da SUCCESS -> tra ve ket qua cu
     if (idempotencyKey) {
       const existingPayment = await this.prisma.payment.findUnique({
         where: { idempotencyKey },
         include: { order: true },
       });
 
-      if (existingPayment) {
-        if (existingPayment.status === PaymentStatus.SUCCESS) {
-          this.logger.log(
-            `[Idempotency] Phát hiện yêu cầu trùng lặp với key "${idempotencyKey}". Trả về kết quả giao dịch cũ.`,
-          );
-          return {
-            success: true,
-            paymentId: existingPayment.id,
-            orderId: existingPayment.orderId,
-            status: existingPayment.order.status,
-            paymentStatus: existingPayment.status,
-            amount: existingPayment.amount,
-            method: existingPayment.method,
-            isIdempotent: true,
-            message: 'Giao dịch đã được xử lý trước đó thành công (Idempotent response)',
-          };
-        }
-        // Nếu key tồn tại nhưng không SUCCESS (ví dụ lần trước FAILED), sinh key mới hoặc tiếp tục xử lý
+      if (existingPayment && existingPayment.status === PaymentStatus.SUCCESS) {
+        this.logger.log(
+          `[Idempotency] Phat hien yeu cau trung lap voi key "${idempotencyKey}". Tra ve ket qua giao dich cu.`,
+        );
+        return {
+          success: true,
+          paymentId: existingPayment.id,
+          orderId: existingPayment.orderId,
+          status: existingPayment.order.status,
+          paymentStatus: existingPayment.status,
+          amount: existingPayment.amount,
+          method: existingPayment.method,
+          isIdempotent: true,
+          message: 'Giao dich da duoc xu ly truoc do thanh cong (Idempotent response)',
+        };
       }
+      // Neu key ton tai nhung FAILED -> tiep tuc xu ly lai binh thuong
     }
 
-    // 2. Tìm đơn hàng trong DB
+    // 2. Tim don hang trong DB
     const order = await this.prisma.order.findUnique({
       where: { id: dto.orderId },
       include: { items: true },
     });
 
     if (!order) {
-      throw new NotFoundException(`Không tìm thấy đơn hàng với mã #${dto.orderId}`);
+      throw new NotFoundException(`Khong tim thay don hang voi ma #${dto.orderId}`);
     }
 
-    // 3. Kiểm tra quyền sở hữu đơn hàng (chống IDOR)
+    // 3. Kiem tra quyen so huu don hang (chong IDOR)
     if (order.userId !== null && order.userId !== userId) {
-      throw new ForbiddenException('Bạn không có quyền thanh toán cho đơn hàng này');
+      throw new ForbiddenException('Ban khong co quyen thanh toan cho don hang nay');
     }
 
-    // 4. Lấy amount trực tiếp từ order.totalAmount trong DB, tuyệt đối không nhận từ client
+    // 4. Lay amount tu order.totalAmount trong DB, tuyet doi khong nhan tu client
     const paymentAmount = order.totalAmount;
 
-    // 5. Dự kiến trạng thái tiếp theo để kiểm tra State Machine Guard
+    // 5. Du kien trang thai tiep theo de kiem tra State Machine Guard
     const targetStatus = dto.simulateFailure ? OrderStatus.PAYMENT_FAILED : OrderStatus.PAID;
     assertTransition(order.status, targetStatus);
 
-    // 6. Thực thi transaction trong Prisma để đảm bảo tính toàn vẹn (ACID)
+    // 6. Thuc thi transaction trong Prisma de dam bao tinh toan ven (ACID)
     return await this.prisma.$transaction(async (tx) => {
-      // Đọc lại order có lock trong transaction để tránh race condition
+      // Doc lai order trong transaction de co version hien tai
       const currentOrder = await tx.order.findUnique({
         where: { id: dto.orderId },
       });
 
       if (!currentOrder) {
-        throw new NotFoundException(`Không tìm thấy đơn hàng #${dto.orderId}`);
+        throw new NotFoundException(`Khong tim thay don hang #${dto.orderId}`);
       }
 
-      // Xác thực lại state transition trong transaction
+      // Xac thuc lai state transition trong transaction
       assertTransition(currentOrder.status, targetStatus);
 
-      // Gọi MockPaymentService
+      // Goi MockPaymentService
       const mockResult = await this.mockPaymentService.processPayment({
         amount: paymentAmount,
         method: dto.method,
@@ -114,13 +117,26 @@ export class PaymentsService {
       });
 
       if (!mockResult.success) {
-        // Cập nhật trạng thái đơn sang PAYMENT_FAILED
-        const updatedOrder = await tx.order.update({
-          where: { id: currentOrder.id },
-          data: { status: OrderStatus.PAYMENT_FAILED },
+        // Thanh toan that bai
+
+        // Task 10: Optimistic Locking - chi update neu version khop
+        const failResult = await tx.order.updateMany({
+          where: {
+            id: currentOrder.id,
+            version: currentOrder.version,
+          },
+          data: {
+            status: OrderStatus.PAYMENT_FAILED,
+            version: { increment: 1 },
+          },
         });
 
-        // Tạo bản ghi Payment với status FAILED
+        if (failResult.count === 0) {
+          throw new ConflictException(
+            `Don hang #${currentOrder.id} da bi thay doi boi mot request khac. Vui long thu lai.`,
+          );
+        }
+
         const paymentRecord = await tx.payment.create({
           data: {
             orderId: currentOrder.id,
@@ -132,14 +148,14 @@ export class PaymentsService {
         });
 
         this.logger.warn(
-          `[Payment Failed] Đơn hàng #${currentOrder.id} thanh toán thất bại. Mã Payment: #${paymentRecord.id}`,
+          `[Payment Failed] Don hang #${currentOrder.id} thanh toan that bai. Ma Payment: #${paymentRecord.id}`,
         );
 
         return {
           success: false,
           paymentId: paymentRecord.id,
-          orderId: updatedOrder.id,
-          status: updatedOrder.status,
+          orderId: currentOrder.id,
+          status: OrderStatus.PAYMENT_FAILED,
           paymentStatus: paymentRecord.status,
           amount: paymentRecord.amount,
           method: paymentRecord.method,
@@ -148,13 +164,26 @@ export class PaymentsService {
         };
       }
 
-      // Thanh toán thành công: Cập nhật trạng thái đơn sang PAID
-      const updatedOrder = await tx.order.update({
-        where: { id: currentOrder.id },
-        data: { status: OrderStatus.PAID },
+      // Thanh toan thanh cong
+
+      // Task 10: Optimistic Locking - chi update neu version khop
+      const successResult = await tx.order.updateMany({
+        where: {
+          id: currentOrder.id,
+          version: currentOrder.version,
+        },
+        data: {
+          status: OrderStatus.PAID,
+          version: { increment: 1 },
+        },
       });
 
-      // Tạo bản ghi Payment với status SUCCESS
+      if (successResult.count === 0) {
+        throw new ConflictException(
+          `Don hang #${currentOrder.id} da bi thay doi boi mot request khac. Vui long thu lai.`,
+        );
+      }
+
       const paymentRecord = await tx.payment.create({
         data: {
           orderId: currentOrder.id,
@@ -165,20 +194,37 @@ export class PaymentsService {
         },
       });
 
+      // Task 10: Loyalty Points - Cong Hat Vang cho user (1.000 VND = 1 diem)
+      const pointsEarned = Math.floor(paymentAmount / POINTS_PER_VND);
+
+      if (pointsEarned > 0 && currentOrder.userId) {
+        await tx.user.update({
+          where: { id: currentOrder.userId },
+          data: { loyaltyPoints: { increment: pointsEarned } },
+        });
+        this.logger.log(
+          `[Loyalty] Don #${currentOrder.id}: Cong ${pointsEarned} Hat Vang cho User #${currentOrder.userId}`,
+        );
+      }
+
       this.logger.log(
-        `[Payment Success] Đơn hàng #${currentOrder.id} thanh toán thành công. Mã Payment: #${paymentRecord.id}`,
+        `[Payment Success] Don hang #${currentOrder.id} thanh toan thanh cong. Ma Payment: #${paymentRecord.id}`,
       );
 
       return {
         success: true,
         paymentId: paymentRecord.id,
-        orderId: updatedOrder.id,
-        status: updatedOrder.status,
+        orderId: currentOrder.id,
+        status: OrderStatus.PAID,
         paymentStatus: paymentRecord.status,
         amount: paymentRecord.amount,
         method: paymentRecord.method,
         transactionId: mockResult.transactionId,
-        message: 'Thanh toán đơn hàng thành công!',
+        pointsEarned,
+        message:
+          pointsEarned > 0
+            ? `Thanh toan thanh cong! Ban nhan duoc +${pointsEarned} Hat Vang BrewLite Club.`
+            : 'Thanh toan don hang thanh cong!',
       };
     });
   }

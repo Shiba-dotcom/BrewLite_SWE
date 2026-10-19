@@ -12,6 +12,7 @@ export interface AuthUser {
   email: string;
   fullName: string | null;
   phone: string | null;
+  loyaltyPoints?: number;
 }
 
 interface AuthState {
@@ -24,11 +25,12 @@ interface AuthState {
   setAuth: (user: AuthUser, token: string) => void;
   logout: () => void;
   setHasHydrated: (state: boolean) => void;
+  refreshProfile: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       token: null,
       isAuthenticated: false,
@@ -41,6 +43,22 @@ export const useAuthStore = create<AuthState>()(
         set({ user: null, token: null, isAuthenticated: false }),
 
       setHasHydrated: (state) => set({ _hasHydrated: state }),
+
+      refreshProfile: async () => {
+        const token = get().token;
+        if (!token) return;
+        try {
+          const res = await apiFetch("/auth/me");
+          if (res.ok) {
+            const data = await res.json();
+            set((state) => ({
+              user: state.user ? { ...state.user, ...data } : data,
+            }));
+          }
+        } catch {
+          // ignore network error
+        }
+      },
     }),
     {
       name: "brewlite-auth",

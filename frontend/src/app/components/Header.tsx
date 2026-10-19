@@ -23,11 +23,14 @@ export default function Header({
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [isMounted, setIsMounted] = useState(false);
 
-  const { user, isAuthenticated, logout, _hasHydrated } = useAuthStore();
+  const { user, isAuthenticated, logout, _hasHydrated, refreshProfile } = useAuthStore();
 
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    if (isAuthenticated) {
+      refreshProfile();
+    }
+  }, [isAuthenticated, refreshProfile]);
 
   const handleSearchInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -150,10 +153,13 @@ export default function Header({
           </Link>
 
           {isMounted && _hasHydrated && isAuthenticated && user ? (
-            /* ── Đã đăng nhập: Avatar + tên + nút đăng xuất ── */
+            /* ── Đã đăng nhập: Loyalty Points + Avatar + tên + nút đăng xuất ── */
             <div className="flex items-center gap-2">
-              <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#D97736]/10 text-[#D97736] border border-[#D97736]/20 text-xs font-semibold whitespace-nowrap font-body">
-                <span>{"⭐ 120 điểm".normalize("NFC")}</span>
+              <div
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#D97736]/10 text-[#D97736] border border-[#D97736]/20 text-xs font-semibold whitespace-nowrap font-body"
+                title="Điểm tích lũy Hạt Vàng BrewLite Club"
+              >
+                <span>⭐ {(user.loyaltyPoints ?? 0).toLocaleString("vi-VN")} Hạt Vàng</span>
               </div>
               <div className="flex items-center gap-2 group relative">
                 {/* Avatar circle với initials */}
@@ -167,8 +173,11 @@ export default function Header({
                   <p className="text-[13px] font-semibold text-[#1d1b19] font-body truncate">
                     {user.fullName ?? user.email}
                   </p>
-                  <p className="text-[11px] text-[#827470] font-body truncate mb-2">
+                  <p className="text-[11px] text-[#827470] font-body truncate">
                     {user.email}
+                  </p>
+                  <p className="text-[11px] text-[#D97736] font-semibold font-body truncate mb-2">
+                    ⭐ {(user.loyaltyPoints ?? 0).toLocaleString("vi-VN")} Hạt Vàng
                   </p>
                   <button
                     type="button"
@@ -185,20 +194,15 @@ export default function Header({
             </div>
           ) : (
             /* ── Chưa đăng nhập: nút Đăng nhập ── */
-            <>
-              <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#D97736]/10 text-[#D97736] border border-[#D97736]/20 text-xs font-semibold whitespace-nowrap font-body">
-                <span>{"⭐ 120 điểm".normalize("NFC")}</span>
-              </div>
-              <Link
-                href="/login"
-                className="flex items-center gap-1.5 bg-[#f8f2ee] hover:bg-[#f3ede9] border border-[#d3c3be]/50 text-[#2c1810] px-3 py-1.5 rounded-full text-xs font-semibold transition-all font-body"
-              >
-                <span className="material-symbols-outlined text-sm">
-                  person
-                </span>
-                Đăng nhập
-              </Link>
-            </>
+            <Link
+              href="/login"
+              className="flex items-center gap-1.5 bg-[#f8f2ee] hover:bg-[#f3ede9] border border-[#d3c3be]/50 text-[#2c1810] px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all font-body"
+            >
+              <span className="material-symbols-outlined text-sm">
+                person
+              </span>
+              Đăng nhập
+            </Link>
           )}
         </div>
       </div>

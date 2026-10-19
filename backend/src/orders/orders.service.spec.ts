@@ -2,7 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { vi, describe, beforeEach, it, expect } from 'vitest';
 import { OrdersService } from './orders.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { OrderStatus } from '@prisma/client';
 
 describe('OrdersService', () => {
   let service: OrdersService;
@@ -11,6 +12,7 @@ describe('OrdersService', () => {
       findMany: ReturnType<typeof vi.fn>;
       findUnique: ReturnType<typeof vi.fn>;
       create: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
     };
     $transaction: ReturnType<typeof vi.fn>;
   };
@@ -21,6 +23,7 @@ describe('OrdersService', () => {
         findMany: vi.fn(),
         findUnique: vi.fn(),
         create: vi.fn(),
+        update: vi.fn(),
       },
       $transaction: vi.fn(),
     };
@@ -110,6 +113,67 @@ describe('OrdersService', () => {
       const result = await service.getOrderById(103, 1);
       expect(result.id).toBe(103);
       expect(result.status).toBe('PAID');
+    });
+  });
+
+  describe('updateOrderStatus (Task 10)', () => {
+    it('should throw NotFoundException if order does not exist', async () => {
+      prisma.order.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.updateOrderStatus(999, OrderStatus.PREPARING, 1),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ForbiddenException if user is not authorized', async () => {
+      prisma.order.findUnique.mockResolvedValue({
+        id: 104,
+        userId: 2,
+        status: OrderStatus.PAID,
+      });
+
+      await expect(
+        service.updateOrderStatus(104, OrderStatus.PREPARING, 1),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw BadRequestException if state transition is invalid', async () => {
+      prisma.order.findUnique.mockResolvedValue({
+        id: 105,
+        userId: 1,
+        status: OrderStatus.PAID,
+      });
+
+      // PAID -> COMPLETED is invalid (must go through PREPARING -> READY -> COMPLETED)
+      await expect(
+        service.updateOrderStatus(105, OrderStatus.COMPLETED, 1),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should update and return new status when transition is valid', async () => {
+      const now = new Date();
+      prisma.order.findUnique.mockResolvedValue({
+        id: 106,
+        userId: 1,
+        status: OrderStatus.PAID,
+      });
+
+      prisma.order.update.mockResolvedValue({
+        id: 106,
+        status: OrderStatus.PREPARING,
+        updatedAt: now,
+      });
+
+      const result = await service.updateOrderStatus(106, OrderStatus.PREPARING, 1);
+
+      expect(prisma.order.update).toHaveBeenCalledWith({
+        where: { id: 106 },
+        data: { status: OrderStatus.PREPARING },
+      });
+      expect(result.orderId).toBe(106);
+      expect(result.previousStatus).toBe(OrderStatus.PAID);
+      expect(result.status).toBe(OrderStatus.PREPARING);
+      expect(result.updatedAt).toBe(now);
     });
   });
 });

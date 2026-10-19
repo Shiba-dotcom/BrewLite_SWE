@@ -3,8 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
+import { assertTransition } from '../payments/state-machine.helper.js';
 
 @Injectable()
 export class OrdersService {
@@ -77,6 +79,37 @@ export class OrdersService {
    * Lấy chi tiết đơn hàng theo ID (Task 8)
    * Kiểm tra quyền sở hữu đơn hàng (order.userId === userId)
    */
+  /**
+   * Cập nhật trạng thái đơn hàng thủ công (Task 10 — PATCH /orders/:id/status)
+   * Dùng assertTransition để đảm bảo State Machine Guard
+   */
+  async updateOrderStatus(orderId: number, nextStatus: OrderStatus, userId: number) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng với mã #${orderId}`);
+    }
+
+    if (order.userId !== null && order.userId !== userId) {
+      throw new ForbiddenException('Bạn không có quyền cập nhật đơn hàng này');
+    }
+
+    // State Machine Guard: chặn các transition không hợp lệ
+    assertTransition(order.status, nextStatus);
+
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data: { status: nextStatus },
+    });
+
+    return {
+      orderId: updated.id,
+      previousStatus: order.status,
+      status: updated.status,
+      updatedAt: updated.updatedAt,
+    };
+  }
+
   async getOrderById(orderId: number, userId: number) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },

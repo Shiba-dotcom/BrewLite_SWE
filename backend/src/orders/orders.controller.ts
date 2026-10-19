@@ -4,12 +4,14 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Request,
   UseGuards,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
+import { UpdateOrderStatusDto } from './dto/update-order-status.dto.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 
 interface AuthRequest extends Request {
@@ -52,5 +54,19 @@ export class OrdersController {
   ) {
     return this.ordersService.getOrderById(id, req.user.userId);
   }
-}
 
+  /**
+   * PATCH /orders/:id/status — Cập nhật trạng thái đơn hàng thủ công (Task 10)
+   * Dành cho barista/admin: PAID → PREPARING → READY → COMPLETED
+   * State Machine Guard chặn mọi transition không hợp lệ (BadRequestException)
+   */
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/status')
+  updateOrderStatus(
+    @Request() req: AuthRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateOrderStatusDto,
+  ) {
+    return this.ordersService.updateOrderStatus(id, dto.status, req.user.userId);
+  }
+}

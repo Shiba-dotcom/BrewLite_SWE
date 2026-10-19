@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
-import { apiFetch } from "../store/authStore";
+import { apiFetch, useAuthStore } from "../store/authStore";
 
 interface ConfirmationOrderItem {
   id: number;
@@ -71,7 +71,10 @@ function OrderConfirmationContent() {
     apiFetch(`/orders/${orderId}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data: ConfirmationOrderDetail | null) => {
-        if (data) setOrder(data);
+        if (data) {
+          setOrder(data);
+          useAuthStore.getState().refreshProfile();
+        }
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -90,8 +93,8 @@ function OrderConfirmationContent() {
   const progressStep = getProgressStep(status);
   const isPaid = ["PAID", "PREPARING", "READY", "COMPLETED"].includes(status);
 
-  // Estimated loyalty points (mock: 1 point per 5000 VND)
-  const loyaltyPoints = order ? Math.floor(order.totalAmount / 5000) : 38;
+  // Loyalty points (Task 10: 1 hạt vàng per 1.000 VNĐ)
+  const loyaltyPoints = order ? Math.floor(order.totalAmount / 1000) : 0;
 
   // Payment method label
   const paymentMethod =
