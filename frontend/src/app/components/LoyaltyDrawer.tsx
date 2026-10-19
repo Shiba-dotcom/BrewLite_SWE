@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useAuthStore } from "../store/authStore";
 
 interface LoyaltyDrawerProps {
@@ -12,8 +13,25 @@ export default function LoyaltyDrawer({ isOpen, onClose }: LoyaltyDrawerProps) {
   const { user, logout, refreshProfile } = useAuthStore();
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [redeemedToast, setRedeemedToast] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+      refreshProfile();
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen, refreshProfile]);
+
+  if (!isOpen || !mounted) return null;
 
   const points = user?.loyaltyPoints ?? 0;
   const currentTier = points >= 300 ? "Kim Cương" : points >= 100 ? "Vàng" : "Bạc";
@@ -53,22 +71,22 @@ export default function LoyaltyDrawer({ isOpen, onClose }: LoyaltyDrawerProps) {
         .toUpperCase()
     : (user?.email?.slice(0, 2).toUpperCase() ?? "BL");
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-hidden font-body animate-[fadeIn_0.2s_ease-out]">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] overflow-hidden font-body animate-[fadeIn_0.2s_ease-out]">
       {/* ── Backdrop Overlay ── */}
       <div
-        className="fixed inset-0 bg-black/45 backdrop-blur-[2px] transition-opacity"
+        className="fixed inset-0 bg-black/50 backdrop-blur-[2px] transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* ── Slide-over Container ── */}
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10 z-[10000]">
         <aside
           role="dialog"
           aria-modal="true"
           aria-label="Tài khoản & Điểm tích lũy"
-          className="w-screen max-w-md bg-[#FAF6F0] shadow-2xl flex flex-col border-l border-[#2C1810]/10 overflow-hidden animate-[slideInRight_0.3s_cubic-bezier(0.16,1,0.3,1)]"
+          className="w-screen max-w-md h-full bg-[#FAF6F0] shadow-2xl flex flex-col border-l border-[#2C1810]/10 overflow-hidden animate-[slideInRight_0.3s_cubic-bezier(0.16,1,0.3,1)]"
         >
           {/* ── 1. Top Header Bar ── */}
           <div className="flex items-center justify-between px-6 py-4 bg-white/80 backdrop-blur-md border-b border-[#2C1810]/10">
@@ -369,6 +387,7 @@ export default function LoyaltyDrawer({ isOpen, onClose }: LoyaltyDrawerProps) {
           </div>
         </aside>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
