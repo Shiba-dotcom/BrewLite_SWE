@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -13,16 +14,43 @@ export class OrdersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createOrder(dto: CreateOrderDto, userId: number) {
-    // Tính totalAmount server-side — không tin tưởng client
-    const totalAmount = dto.items.reduce(
+    // 1. Tính rawSubtotal server-side — không tin tưởng client
+    const rawSubtotal = dto.items.reduce(
       (sum, item) => sum + item.unitPrice * item.quantity,
       0,
     );
+
+    // 2. Xử lý mã giảm giá (Voucher / Discount Code)
+    let discountAmount = 0;
+    let appliedDiscountCode: string | null = null;
+
+    if (dto.discountCode && dto.discountCode.trim()) {
+      const code = dto.discountCode.trim().toUpperCase();
+      const DISCOUNT_RATES: Record<string, number> = {
+        BREW10: 0.1, // Giảm 10%
+        BREWCOZY: 0.15, // Giảm 15% (Khách hàng thân thiết)
+        BREW20: 0.2, // Giảm 20%
+        BREW50: 0.5, // Giảm 50%
+      };
+
+      if (!DISCOUNT_RATES[code]) {
+        throw new BadRequestException(
+          `Mã giảm giá "${dto.discountCode}" không hợp lệ hoặc đã hết hạn.`,
+        );
+      }
+
+      discountAmount = Math.round(rawSubtotal * DISCOUNT_RATES[code]);
+      appliedDiscountCode = code;
+    }
+
+    const totalAmount = Math.max(0, rawSubtotal - discountAmount);
 
     const order = await this.prisma.$transaction(async (tx) => {
       const newOrder = await tx.order.create({
         data: {
           totalAmount,
+          discountCode: appliedDiscountCode,
+          discountAmount,
           userId, // ← lấy từ JWT payload (đã xác thực), không từ body
           items: {
             create: dto.items.map((item) => ({
@@ -45,6 +73,8 @@ export class OrdersService {
       orderId: order.id,
       status: order.status,
       totalAmount: order.totalAmount,
+      discountCode: order.discountCode,
+      discountAmount: order.discountAmount,
       items: order.items,
     };
   }
@@ -134,6 +164,8 @@ export class OrdersService {
       orderId: order.id,
       status: order.status,
       totalAmount: order.totalAmount,
+      discountCode: order.discountCode,
+      discountAmount: order.discountAmount,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
       items: order.items,

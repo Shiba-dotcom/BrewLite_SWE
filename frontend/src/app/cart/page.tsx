@@ -677,7 +677,12 @@ export default function CartPage() {
   const displayItems = hydrated ? items : [];
 
   // Calculate discount based on promo code
-  const discountRate = appliedPromo === "BREWCOZY" ? 0.15 : 0;
+  const discountRate =
+    appliedPromo === "BREWCOZY"
+      ? 0.15
+      : appliedPromo === "BREW10"
+        ? 0.1
+        : 0;
   const discountAmount = Math.round(subtotal * discountRate);
 
   // Match the product for editing in modal
@@ -719,6 +724,7 @@ export default function CartPage() {
           quantity: item.quantity,
           unitPrice: item.price,
         })),
+        discountCode: appliedPromo || undefined,
       };
       // apiFetch tự động đính kèm Authorization: Bearer <token>
       const res = await apiFetch("/orders", {

@@ -176,4 +176,146 @@ describe('OrdersService', () => {
       expect(result.updatedAt).toBe(now);
     });
   });
+
+  describe('createOrder & Discount Codes (Voucher)', () => {
+    it('áp dụng mã BREW10 giảm đúng 10% tổng đơn', async () => {
+      const mockCreatedOrder = {
+        id: 201,
+        status: OrderStatus.PENDING,
+        totalAmount: 90000, // 100.000 - 10.000 (10%)
+        discountCode: 'BREW10',
+        discountAmount: 10000,
+        items: [],
+      };
+
+      prisma.$transaction.mockImplementation(async (cb) => {
+        return cb({
+          order: {
+            create: vi.fn().mockResolvedValue(mockCreatedOrder),
+          },
+        });
+      });
+
+      const result = await service.createOrder(
+        {
+          items: [
+            {
+              productId: 1,
+              productName: 'Cà phê Muối',
+              size: 'M',
+              toppings: [],
+              quantity: 2,
+              unitPrice: 50000, // subtotal = 100.000
+            },
+          ],
+          discountCode: 'BREW10',
+        },
+        1,
+      );
+
+      expect(result.totalAmount).toBe(90000);
+      expect(result.discountCode).toBe('BREW10');
+      expect(result.discountAmount).toBe(10000);
+    });
+
+    it('áp dụng mã BREWCOZY giảm đúng 15% tổng đơn', async () => {
+      const mockCreatedOrder = {
+        id: 202,
+        status: OrderStatus.PENDING,
+        totalAmount: 85000, // 100.000 - 15.000 (15%)
+        discountCode: 'BREWCOZY',
+        discountAmount: 15000,
+        items: [],
+      };
+
+      prisma.$transaction.mockImplementation(async (cb) => {
+        return cb({
+          order: {
+            create: vi.fn().mockResolvedValue(mockCreatedOrder),
+          },
+        });
+      });
+
+      const result = await service.createOrder(
+        {
+          items: [
+            {
+              productId: 1,
+              productName: 'Cà phê Sữa',
+              size: 'M',
+              toppings: [],
+              quantity: 1,
+              unitPrice: 100000,
+            },
+          ],
+          discountCode: 'brewcozy', // test chữ thường vẫn nhận
+        },
+        1,
+      );
+
+      expect(result.totalAmount).toBe(85000);
+      expect(result.discountCode).toBe('BREWCOZY');
+      expect(result.discountAmount).toBe(15000);
+    });
+
+    it('ném BadRequestException khi nhập mã giảm giá không hợp lệ', async () => {
+      await expect(
+        service.createOrder(
+          {
+            items: [
+              {
+                productId: 1,
+                productName: 'Matcha Latte',
+                size: 'S',
+                toppings: [],
+                quantity: 1,
+                unitPrice: 45000,
+              },
+            ],
+            discountCode: 'INVALID_CODE',
+          },
+          1,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('tính nguyên giá nếu không nhập mã giảm giá', async () => {
+      const mockCreatedOrder = {
+        id: 203,
+        status: OrderStatus.PENDING,
+        totalAmount: 70000,
+        discountCode: null,
+        discountAmount: 0,
+        items: [],
+      };
+
+      prisma.$transaction.mockImplementation(async (cb) => {
+        return cb({
+          order: {
+            create: vi.fn().mockResolvedValue(mockCreatedOrder),
+          },
+        });
+      });
+
+      const result = await service.createOrder(
+        {
+          items: [
+            {
+              productId: 1,
+              productName: 'Bạc Xỉu',
+              size: 'S',
+              toppings: [],
+              quantity: 2,
+              unitPrice: 35000,
+            },
+          ],
+        },
+        1,
+      );
+
+      expect(result.totalAmount).toBe(70000);
+      expect(result.discountCode).toBeNull();
+      expect(result.discountAmount).toBe(0);
+    });
+  });
 });

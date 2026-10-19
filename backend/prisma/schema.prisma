@@ -60,12 +60,14 @@ model Order {
   userId      Int?        // nullable: cho phép test trước khi có auth (Task 7)
   user        User?       @relation(fields: [userId], references: [id])
   status      OrderStatus @default(PENDING)
-  totalAmount Float
-  version     Int         @default(0)   // Task 10: Optimistic Locking
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  items       OrderItem[]
-  payments    Payment[]
+  totalAmount    Float
+  discountCode   String?
+  discountAmount Float       @default(0)
+  version        Int         @default(0)   // Task 10: Optimistic Locking
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  items          OrderItem[]
+  payments       Payment[]
 }
 
 model OrderItem {

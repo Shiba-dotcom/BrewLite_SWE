@@ -5,6 +5,7 @@ import {
   IsIn,
   IsInt,
   IsNumber,
+  IsOptional,
   IsString,
   Min,
   ValidateNested,
@@ -39,4 +40,8 @@ export class CreateOrderDto {
   @ArrayMinSize(1)
   @Type(() => OrderItemDto)
   items: OrderItemDto[];
+
+  @IsOptional()
+  @IsString()
+  discountCode?: string;
 }

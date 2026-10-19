@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import BrewLiteLogo from "./BrewLiteLogo";
 import { useAuthStore } from "../store/authStore";
+import LoyaltyDrawer from "./LoyaltyDrawer";
 
 export interface HeaderProps {
   cartCount?: number;
@@ -22,6 +23,7 @@ export default function Header({
 }: HeaderProps) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [isMounted, setIsMounted] = useState(false);
+  const [isLoyaltyDrawerOpen, setIsLoyaltyDrawerOpen] = useState(false);
 
   const { user, isAuthenticated, logout, _hasHydrated, refreshProfile } = useAuthStore();
 
@@ -155,21 +157,28 @@ export default function Header({
           {isMounted && _hasHydrated && isAuthenticated && user ? (
             /* ── Đã đăng nhập: Loyalty Points + Avatar + tên + nút đăng xuất ── */
             <div className="flex items-center gap-2">
-              <div
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#D97736]/10 text-[#D97736] border border-[#D97736]/20 text-xs font-semibold whitespace-nowrap font-body"
-                title="Điểm tích lũy Hạt Vàng BrewLite Club"
+              <button
+                type="button"
+                onClick={() => setIsLoyaltyDrawerOpen(true)}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#D97736]/10 hover:bg-[#D97736]/20 text-[#D97736] border border-[#D97736]/20 text-xs font-semibold whitespace-nowrap font-body transition-colors cursor-pointer"
+                title="Bấm để mở Thẻ thành viên & Đổi ưu đãi Hạt Vàng"
               >
                 <span>⭐ {(user.loyaltyPoints ?? 0).toLocaleString("vi-VN")} Hạt Vàng</span>
-              </div>
+              </button>
               <div className="flex items-center gap-2 group relative">
-                {/* Avatar circle với initials */}
-                <div className="w-8 h-8 rounded-full bg-[#2c1810] flex items-center justify-center ring-2 ring-[#ede7e3] cursor-pointer">
+                {/* Avatar circle với initials: Bấm để mở Slide-over Drawer chuẩn Stitch */}
+                <button
+                  type="button"
+                  onClick={() => setIsLoyaltyDrawerOpen(true)}
+                  className="w-8 h-8 rounded-full bg-[#2c1810] hover:bg-[#3d2318] flex items-center justify-center ring-2 ring-[#ede7e3] cursor-pointer transition-transform active:scale-95"
+                  title="Tài khoản & Điểm tích lũy của tôi"
+                >
                   <span className="text-[11px] font-bold text-white font-body">
                     {initials}
                   </span>
-                </div>
-                {/* Dropdown on hover */}
-                <div className="absolute right-0 top-10 bg-white rounded-2xl shadow-lg border border-[#ede7e3] p-3 min-w-[180px] opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity z-50">
+                </button>
+                {/* Dropdown on hover: Quick menu */}
+                <div className="absolute right-0 top-10 bg-white rounded-2xl shadow-lg border border-[#ede7e3] p-3 min-w-[200px] opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity z-50">
                   <p className="text-[13px] font-semibold text-[#1d1b19] font-body truncate">
                     {user.fullName ?? user.email}
                   </p>
@@ -179,6 +188,16 @@ export default function Header({
                   <p className="text-[11px] text-[#D97736] font-semibold font-body truncate mb-2">
                     ⭐ {(user.loyaltyPoints ?? 0).toLocaleString("vi-VN")} Hạt Vàng
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => setIsLoyaltyDrawerOpen(true)}
+                    className="w-full flex items-center gap-1.5 text-[12px] font-semibold text-[#845326] hover:bg-[#FAF0E6] px-2 py-1.5 rounded-lg transition-colors font-body mb-1"
+                  >
+                    <span className="material-symbols-outlined text-sm">
+                      workspace_premium
+                    </span>
+                    Xem Thẻ Thành Viên
+                  </button>
                   <button
                     type="button"
                     onClick={logout}
@@ -206,6 +225,12 @@ export default function Header({
           )}
         </div>
       </div>
+
+      {/* ── Stitch Loyalty Drawer Modal ── */}
+      <LoyaltyDrawer
+        isOpen={isLoyaltyDrawerOpen}
+        onClose={() => setIsLoyaltyDrawerOpen(false)}
+      />
     </header>
   );
 }

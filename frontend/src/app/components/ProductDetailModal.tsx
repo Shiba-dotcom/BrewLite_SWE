@@ -869,7 +869,7 @@ export default function ProductDetailModal({
                 <span className="text-[11px] text-[#827470] font-body">
                   {"Tích lũy ".normalize("NFC")}
                   <strong className="text-[#1d1b19]">
-                    +{Math.max(1, Math.round(totalPrice / 3000))} Điểm Hạt Vàng
+                    +{Math.max(1, Math.floor(totalPrice / 1000))} Điểm Hạt Vàng
                   </strong>{" "}
                   BrewLite Club
                 </span>
