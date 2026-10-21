@@ -3,12 +3,13 @@
 import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { Flame, Snowflake, Wheat } from "lucide-react";
 import Footer from "../components/Footer";
 import Header from "../components/Header";
 import ProductDetailModal, {
   CustomizationDetails,
 } from "../components/ProductDetailModal";
-import { useCartStore } from "../store/cartStore";
+import { useCartStore, isBakeryProduct } from "../store/cartStore";
 
 export interface ProductRecipeItem {
   id: number;
@@ -393,13 +394,20 @@ export default function MenuPage() {
     customization: CustomizationDetails
   ) => {
     if (product.isOutOfStock) return;
+    const isBakery = customization.isBakery ?? isBakeryProduct(product);
+    const isHot = customization.temp === "hot";
     addItem({
       id: product.id,
       name: product.name,
       price: customization.unitPrice,
       temp: customization.temp,
+      temperature: isHot ? "HOT" : "COLD",
+      servingStyle: customization.servingStyle,
+      isBakery,
+      iceLevel: isBakery || isHot ? undefined : customization.ice,
+      sugarLevel: isBakery ? undefined : customization.sweetness,
       quantity: customization.quantity,
-      size: customization.size,
+      size: isBakery ? undefined : customization.size,
       toppings: customization.toppings.map((t) => t.name),
       notes: customization.notes,
       imageUrl: product.imageUrl,
@@ -539,35 +547,56 @@ export default function MenuPage() {
                   <button
                     type="button"
                     onClick={() => setTempFilter("iced")}
-                    className={`filter-pill px-3 py-1.5 rounded-full text-[11px] font-bold transition-all ${
+                    className={`filter-pill px-3 py-1.5 rounded-full text-[11px] font-bold transition-all inline-flex items-center gap-1.5 ${
                       tempFilter === "iced"
                         ? "bg-[#2c1810] text-white"
                         : "bg-[#f3ede9] text-[#504440] hover:bg-[#ede7e3]"
                     }`}
                   >
-                    🧊 Iced
+                    <Snowflake
+                      size={13}
+                      strokeWidth={2.2}
+                      className={
+                        tempFilter === "iced" ? "text-white" : "text-[#504440]"
+                      }
+                    />
+                    <span>Iced</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setTempFilter("hot")}
-                    className={`filter-pill px-3 py-1.5 rounded-full text-[11px] font-bold transition-all ${
+                    className={`filter-pill px-3 py-1.5 rounded-full text-[11px] font-bold transition-all inline-flex items-center gap-1.5 ${
                       tempFilter === "hot"
                         ? "bg-[#2c1810] text-white"
                         : "bg-[#f3ede9] text-[#504440] hover:bg-[#ede7e3]"
                     }`}
                   >
-                    ☕ Hot
+                    <Flame
+                      size={13}
+                      strokeWidth={2.2}
+                      className={
+                        tempFilter === "hot" ? "text-white" : "text-[#504440]"
+                      }
+                    />
+                    <span>Hot</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setTempFilter("oat")}
-                    className={`filter-pill px-3 py-1.5 rounded-full text-[11px] font-bold transition-all ${
+                    className={`filter-pill px-3 py-1.5 rounded-full text-[11px] font-bold transition-all inline-flex items-center gap-1.5 ${
                       tempFilter === "oat"
                         ? "bg-[#2c1810] text-white"
                         : "bg-[#f3ede9] text-[#504440] hover:bg-[#ede7e3]"
                     }`}
                   >
-                    🌾 Oat
+                    <Wheat
+                      size={13}
+                      strokeWidth={2.2}
+                      className={
+                        tempFilter === "oat" ? "text-white" : "text-[#504440]"
+                      }
+                    />
+                    <span>Oat</span>
                   </button>
                 </div>
               </div>

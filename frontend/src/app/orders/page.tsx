@@ -6,6 +6,7 @@ import Link from "next/link";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { apiFetch, useAuthStore } from "../store/authStore";
+import { isBakeryProduct } from "../store/cartStore";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -75,8 +76,8 @@ const STATUS_CONFIG: Record<
 > = {
   PENDING: {
     label: "Chờ thanh toán",
-    badgeClass: "bg-amber-100 text-amber-800 ring-1 ring-amber-200",
-    iconBg: "bg-amber-100 text-amber-800",
+    badgeClass: "bg-amber-500/15 text-amber-900 ring-1 ring-amber-500/30 font-bold",
+    iconBg: "bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-md shadow-amber-500/25",
     icon: "schedule",
     iconClass: "",
   },
@@ -113,15 +114,15 @@ const STATUS_CONFIG: Record<
   },
   PAYMENT_FAILED: {
     label: "Thanh toán lỗi",
-    badgeClass: "bg-red-100 text-red-700 ring-1 ring-red-200",
-    iconBg: "bg-red-100 text-red-700",
+    badgeClass: "bg-[#FAF0EE] text-[#8C3B32] ring-1 ring-[#8C3B32]/30 font-bold",
+    iconBg: "bg-gradient-to-br from-[#8C3B32] to-[#6E2822] text-white shadow-md shadow-[#8C3B32]/20",
     icon: "error_outline",
     iconClass: "",
   },
   CANCELLED: {
     label: "Đã hủy",
-    badgeClass: "bg-slate-100 text-slate-500",
-    iconBg: "bg-slate-100 text-slate-400",
+    badgeClass: "bg-[#FAF0EE] text-[#8C3B32] ring-1 ring-[#8C3B32]/30 font-bold",
+    iconBg: "bg-gradient-to-br from-[#8C3B32] to-[#6E2822] text-white shadow-md shadow-[#8C3B32]/20",
     icon: "cancel",
     iconClass: "",
   },
@@ -136,9 +137,72 @@ function isActive(status: string) {
   return ACTIVE_STATUSES.includes(status);
 }
 
+// ── Pending countdown timer component ─────────────────────────────────────────
+
+function PendingCountdown({
+  createdAt,
+  onExpire,
+}: {
+  createdAt: string;
+  onExpire?: () => void;
+}) {
+  const [timeLeft, setTimeLeft] = useState(() => {
+    const expireTime = new Date(createdAt).getTime() + 5 * 60 * 1000;
+    return Math.max(0, Math.floor((expireTime - Date.now()) / 1000));
+  });
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const expireTime = new Date(createdAt).getTime() + 5 * 60 * 1000;
+      const rem = Math.max(0, Math.floor((expireTime - Date.now()) / 1000));
+      setTimeLeft(rem);
+      if (rem <= 0) {
+        clearInterval(timer);
+        onExpire?.();
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [createdAt, onExpire]);
+
+  if (timeLeft <= 0) {
+    return (
+      <span className="inline-flex items-center gap-1 text-red-600 font-bold text-[11px] bg-red-50 px-2 py-0.5 rounded-md border border-red-200">
+        <span className="material-symbols-outlined text-[13px]">warning</span>
+        Hết hạn (Đang hoàn kho)
+      </span>
+    );
+  }
+
+  const mm = Math.floor(timeLeft / 60);
+  const ss = timeLeft % 60;
+  return (
+    <span className="inline-flex items-center gap-1 font-mono text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-300 text-[11px] font-bold">
+      <span
+        className="material-symbols-outlined text-[13px] animate-spin text-amber-700"
+        style={{ animationDuration: "3s" }}
+      >
+        timer
+      </span>
+      <span>
+        Tự hủy sau {String(mm).padStart(2, "0")}:{String(ss).padStart(2, "0")}
+      </span>
+    </span>
+  );
+}
+
 // ── Order card component ──────────────────────────────────────────────────────
 
-function OrderCard({ order }: { order: Order }) {
+function OrderCard({
+  order,
+  onCancel,
+  onDelete,
+  onExpire,
+}: {
+  order: Order;
+  onCancel?: (orderId: number) => void;
+  onDelete?: (orderId: number) => void;
+  onExpire?: () => void;
+}) {
   const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG["COMPLETED"];
   const payMethod = order.payments?.[0]?.method;
   const payLabel =
@@ -152,7 +216,10 @@ function OrderCard({ order }: { order: Order }) {
 
   const isReadyStatus = order.status === "READY";
   const isPreparingStatus = order.status === "PREPARING";
-  const isActiveOrder = isActive(order.status);
+  const isPendingStatus = order.status === "PENDING";
+  const isCancelledStatus =
+    order.status === "CANCELLED" || order.status === "PAYMENT_FAILED";
+  const isActiveOrder = isActive(order.status) || isPendingStatus;
 
   return (
     <article
@@ -201,13 +268,16 @@ function OrderCard({ order }: { order: Order }) {
 
             {/* Items summary */}
             <p className="text-[15px] text-[#1d1b19]">
-              {order.items?.slice(0, 3).map((item, i) => (
-                <span key={item.id}>
-                  {i > 0 && ", "}
-                  <strong className="font-semibold">{item.quantity}×</strong>{" "}
-                  {item.productName} ({item.size || "M"})
-                </span>
-              ))}
+              {order.items?.slice(0, 3).map((item, i) => {
+                const isBakery = isBakeryProduct({ name: item.productName });
+                return (
+                  <span key={item.id}>
+                    {i > 0 && ", "}
+                    <strong className="font-semibold">{item.quantity}×</strong>{" "}
+                    {item.productName}{isBakery ? "" : ` (${item.size || "M"})`}
+                  </span>
+                );
+              })}
               {order.items?.length > 3 && (
                 <span className="text-[#504440]">
                   {" "}
@@ -222,6 +292,17 @@ function OrderCard({ order }: { order: Order }) {
                 credit_card
               </span>
               <span>{payLabel}</span>
+              {order.status === "PENDING" && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <PendingCountdown
+                    createdAt={order.createdAt}
+                    onExpire={onExpire}
+                  />
+                  <span className="text-amber-800 text-[11px]">
+                    • Đang giữ nguyên liệu tại quầy
+                  </span>
+                </div>
+              )}
               {order.status === "PAID" && (
                 <span className="text-[#845326] font-semibold">
                   • Đã gửi xuống quầy Barista • Dự kiến ~3-5 phút
@@ -252,40 +333,80 @@ function OrderCard({ order }: { order: Order }) {
         </div>
 
         {/* Right: Total + CTA */}
-        <div className="flex items-center justify-between md:justify-end gap-4 w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-[#f3ede9]">
+        <div className="flex items-center justify-between md:justify-end gap-3 w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-[#f3ede9]">
           <div className="text-left md:text-right">
             <span className="block font-headline text-[18px] font-bold text-[#2c1810]">
               {vnd(order.totalAmount)}
             </span>
-            <span className="text-[11px] text-[#504440]">
-              {order.items?.reduce((s, i) => s + i.quantity, 0) ?? 0} ly/phần
-            </span>
           </div>
-          <Link
-            href={`/order-confirmation?orderId=${order.id}`}
-            className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-[13px] transition-all active:scale-95 shadow-sm ${
-              isReadyStatus
-                ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20"
-                : isActiveOrder
-                ? "bg-[#2c1810] hover:bg-[#351300] text-white"
-                : "bg-[#f3ede9] hover:bg-[#ede7e3] text-[#2c1810]"
-            }`}
-          >
-            <span className="material-symbols-outlined text-base">
-              {isReadyStatus
-                ? "qr_code_2"
-                : isActiveOrder
-                ? "visibility"
-                : "receipt_long"}
-            </span>
-            <span>
-              {isReadyStatus
-                ? "Lấy nước ngay (QR)"
-                : isActiveOrder
-                ? "Theo dõi trực tiếp"
-                : "Chi tiết"}
-            </span>
-          </Link>
+
+          {isPendingStatus ? (
+            <div className="flex items-center gap-2">
+              {onCancel && (
+                <button
+                  type="button"
+                  onClick={() => onCancel(order.id)}
+                  className="px-3 py-2.5 rounded-xl font-semibold text-xs text-[#504440] hover:text-red-700 bg-[#f3ede9] hover:bg-red-50 border border-transparent hover:border-red-200 transition-all cursor-pointer active:scale-95"
+                >
+                  Hủy
+                </button>
+              )}
+              <Link
+                href={`/checkout?orderId=${order.id}`}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-[13px] bg-gradient-to-r from-[#845326] to-[#5a3312] hover:from-[#9b612d] hover:to-[#6d3e17] text-[#ffdcc2] border border-[#845326]/50 transition-all active:scale-95 shadow-md shadow-[#2c1810]/20"
+              >
+                <span className="material-symbols-outlined text-base">payments</span>
+                <span>Thanh toán ngay</span>
+              </Link>
+            </div>
+          ) : isCancelledStatus ? (
+            <div className="flex items-center gap-2">
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(order.id)}
+                  className="inline-flex items-center gap-1 px-3 py-2.5 rounded-xl font-semibold text-xs text-[#8C3B32] hover:text-[#6E2822] bg-[#FAF0EE] hover:bg-[#F5E5E2] border border-[#8C3B32]/30 transition-all cursor-pointer active:scale-95 shadow-xs"
+                  title="Xóa đơn hàng này khỏi danh sách hiển thị"
+                >
+                  <span className="material-symbols-outlined text-base">delete</span>
+                  <span>Xóa</span>
+                </button>
+              )}
+              <Link
+                href={`/order-confirmation?orderId=${order.id}`}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-[13px] transition-all active:scale-95 shadow-sm bg-[#f3ede9] hover:bg-[#ede7e3] text-[#2c1810]"
+              >
+                <span className="material-symbols-outlined text-base">receipt_long</span>
+                <span>Chi tiết</span>
+              </Link>
+            </div>
+          ) : (
+            <Link
+              href={`/order-confirmation?orderId=${order.id}`}
+              className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-[13px] transition-all active:scale-95 shadow-sm ${
+                isReadyStatus
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20"
+                  : isActiveOrder
+                  ? "bg-[#2c1810] hover:bg-[#351300] text-white"
+                  : "bg-[#f3ede9] hover:bg-[#ede7e3] text-[#2c1810]"
+              }`}
+            >
+              <span className="material-symbols-outlined text-base">
+                {isReadyStatus
+                  ? "qr_code_2"
+                  : isActiveOrder
+                  ? "visibility"
+                  : "receipt_long"}
+              </span>
+              <span>
+                {isReadyStatus
+                  ? "Lấy nước ngay (QR)"
+                  : isActiveOrder
+                  ? "Theo dõi trực tiếp"
+                  : "Chi tiết"}
+              </span>
+            </Link>
+          )}
         </div>
       </div>
     </article>
@@ -303,6 +424,7 @@ function OrdersContent() {
   const [selectedHeroOrderId, setSelectedHeroOrderId] = useState<number | null>(
     null
   );
+  const [cancellingPending, setCancellingPending] = useState(false);
   const [liveToast, setLiveToast] = useState<{
     orderId: number;
     status: string;
@@ -416,8 +538,99 @@ function OrdersContent() {
     };
   }, [isAuthenticated, playCustomerChime]);
 
+  // Quản lý danh sách ID đơn hàng bị ẩn (xóa mềm hiển thị)
+  const [hiddenOrderIds, setHiddenOrderIds] = useState<number[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = localStorage.getItem("brewlite_hidden_order_ids");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const saveHiddenOrderIds = (ids: number[]) => {
+    setHiddenOrderIds(ids);
+    try {
+      localStorage.setItem("brewlite_hidden_order_ids", JSON.stringify(ids));
+    } catch {
+      // ignore
+    }
+  };
+
+  // Hủy một đơn nháp PENDING cụ thể
+  const handleCancelSingleOrder = async (orderId: number) => {
+    try {
+      await apiFetch(`/orders/${orderId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "CANCELLED" }),
+      });
+      const res = await apiFetch("/orders/me");
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) setOrders(data);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  // Xóa mềm đơn hàng khỏi hiển thị (không xóa DB)
+  const handleDeleteOrder = (orderId: number) => {
+    saveHiddenOrderIds(
+      hiddenOrderIds.includes(orderId)
+        ? hiddenOrderIds
+        : [...hiddenOrderIds, orderId]
+    );
+  };
+
+  // Dọn dẹp tất cả các đơn đã hủy (xóa mềm hiển thị)
+  const handleCleanCancelledOrders = () => {
+    const cancelledIds = orders
+      .filter((o) => o.status === "CANCELLED" || o.status === "PAYMENT_FAILED")
+      .map((o) => o.id);
+    if (!cancelledIds.length) return;
+    saveHiddenOrderIds(
+      Array.from(new Set([...hiddenOrderIds, ...cancelledIds]))
+    );
+  };
+
+  // Khôi phục hiển thị
+  const handleRestoreHiddenOrders = () => {
+    saveHiddenOrderIds([]);
+  };
+
+  // Hủy toàn bộ đơn nháp PENDING dở dang (hoàn lại tồn kho & làm sạch danh sách)
+  const handleCancelPendingOrders = async () => {
+    if (!pendingOrders.length) return;
+    setCancellingPending(true);
+    try {
+      await Promise.all(
+        pendingOrders.map((p) =>
+          apiFetch(`/orders/${p.id}/status`, {
+            method: "PATCH",
+            body: JSON.stringify({ status: "CANCELLED" }),
+          })
+        )
+      );
+      const res = await apiFetch("/orders/me");
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) setOrders(data);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setCancellingPending(false);
+    }
+  };
+
+  // Các đơn còn hiển thị sau khi lọc xóa mềm
+  const visibleOrders = orders.filter((o) => !hiddenOrderIds.includes(o.id));
+  const pendingOrders = visibleOrders.filter((o) => o.status === "PENDING");
+
   // Sort active orders so READY comes first, then PREPARING, then PAID
-  const activeOrders = [...orders.filter((o) => isActive(o.status))].sort(
+  const activeOrders = [...visibleOrders.filter((o) => isActive(o.status))].sort(
     (a, b) => {
       const rank = (s: string) =>
         s === "READY" ? 0 : s === "PREPARING" ? 1 : 2;
@@ -428,7 +641,7 @@ function OrdersContent() {
   const heroOrder =
     activeOrders.find((o) => o.id === selectedHeroOrderId) || activeOrders[0];
 
-  const totalPoints = orders.reduce(
+  const totalPoints = visibleOrders.reduce(
     (sum, o) =>
       ["PAID", "COMPLETED", "PREPARING", "READY"].includes(o.status)
         ? sum + Math.floor(o.totalAmount / 1000)
@@ -436,8 +649,8 @@ function OrdersContent() {
     0
   );
 
-  // Filter logic
-  const filtered = orders.filter((o) => {
+  // Filter logic: Lọc trên visibleOrders
+  const filtered = visibleOrders.filter((o) => {
     if (filter === "all") return true;
     if (filter === "active")
       return isActive(o.status) || o.status === "PENDING";
@@ -453,12 +666,12 @@ function OrdersContent() {
     icon: string;
     count: number;
   }[] = [
-    { key: "all", label: "Tất cả", icon: "receipt_long", count: orders.length },
+    { key: "all", label: "Tất cả", icon: "receipt_long", count: visibleOrders.length },
     {
       key: "active",
       label: "Đang thực hiện",
       icon: "local_cafe",
-      count: orders.filter(
+      count: visibleOrders.filter(
         (o) => isActive(o.status) || o.status === "PENDING"
       ).length,
     },
@@ -466,13 +679,13 @@ function OrdersContent() {
       key: "completed",
       label: "Đã hoàn thành",
       icon: "check_circle",
-      count: orders.filter((o) => o.status === "COMPLETED").length,
+      count: visibleOrders.filter((o) => o.status === "COMPLETED").length,
     },
     {
       key: "cancelled",
       label: "Đã hủy",
       icon: "cancel",
-      count: orders.filter(
+      count: visibleOrders.filter(
         (o) => o.status === "CANCELLED" || o.status === "PAYMENT_FAILED"
       ).length,
     },
@@ -645,17 +858,21 @@ function OrdersContent() {
             </div>
 
             {/* Mini stats */}
-            {!loading && orders.length > 0 && (
+            {!loading && visibleOrders.length > 0 && (
               <div className="flex items-center gap-2 p-1.5 bg-[#f8f2ee] rounded-2xl">
                 <div className="px-4 py-2 bg-white rounded-xl shadow-sm text-center min-w-[80px]">
                   <span className="block text-[22px] font-bold text-[#845326] font-headline">
-                    {String(activeOrders.length).padStart(2, "0")}
+                    {String(
+                      visibleOrders.filter(
+                        (o) => isActive(o.status) || o.status === "PENDING"
+                      ).length
+                    ).padStart(2, "0")}
                   </span>
                   <span className="text-[11px] text-[#504440]">Đang xử lý</span>
                 </div>
                 <div className="px-4 py-2 bg-white rounded-xl shadow-sm text-center min-w-[80px]">
                   <span className="block text-[22px] font-bold text-[#1d1b19] font-headline">
-                    {String(orders.length).padStart(2, "0")}
+                    {String(visibleOrders.length).padStart(2, "0")}
                   </span>
                   <span className="text-[11px] text-[#504440]">Tổng đơn</span>
                 </div>
@@ -679,6 +896,45 @@ function OrdersContent() {
             </div>
           ) : (
             <>
+              {/* ── THÔNG BÁO ĐƠN CHỜ THANH TOÁN (5 PHÚT TỰ HỦY) ── */}
+              {pendingOrders.length > 0 && (
+                <div className="mb-6 rounded-2xl bg-gradient-to-r from-[#2c1810] via-[#3a2016] to-[#2c1810] text-[#fef8f4] border border-[#845326]/50 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl relative overflow-hidden">
+                  <div className="absolute -right-8 -bottom-8 w-36 h-36 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+                  <div className="flex items-start sm:items-center gap-3 relative z-10">
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/30">
+                      <span className="material-symbols-outlined text-2xl">
+                        schedule
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-white tracking-wide">
+                        Có {pendingOrders.length} đơn hàng đang chờ thanh toán
+                      </p>
+                      <p className="text-xs text-[#d7c4ba] mt-0.5 leading-relaxed">
+                        Hệ thống sẽ tự động hủy đơn nếu chưa hoàn tất thanh toán.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2.5 self-end sm:self-auto shrink-0 relative z-10">
+                    <button
+                      type="button"
+                      onClick={handleCancelPendingOrders}
+                      disabled={cancellingPending}
+                      className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-[#fef8f4] border border-white/20 text-xs font-semibold backdrop-blur-xs transition-all cursor-pointer active:scale-95"
+                    >
+                      {cancellingPending ? "Đang hủy..." : "Hủy tất cả đơn chờ"}
+                    </button>
+                    <Link
+                      href={`/checkout?orderId=${pendingOrders[0].id}`}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#845326] to-[#5a3312] hover:from-[#9b612d] hover:to-[#6d3e17] text-[#ffdcc2] border border-[#845326]/60 text-xs font-bold transition-all shadow-md active:scale-95"
+                    >
+                      <span className="material-symbols-outlined text-sm text-[#ffdcc2]">payments</span>
+                      <span>Thanh toán đơn #BL-{pendingOrders[0].id}</span>
+                    </Link>
+                  </div>
+                </div>
+              )}
+
               {/* ── Filter tabs ── */}
               <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-6 scrollbar-none">
                 {filterTabs.map((tab) => (
@@ -949,7 +1205,7 @@ function OrdersContent() {
 
               {/* ── Order list ── */}
               <section>
-                <div className="flex items-center justify-between pb-2 mb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 mb-4 gap-3">
                   <div>
                     <h2 className="font-headline text-[22px] font-bold text-[#1d1b19]">
                       Lịch sử giao dịch
@@ -958,13 +1214,51 @@ function OrdersContent() {
                       Trạng thái xử lý tự động đồng bộ từ Quầy Barista KDS
                     </p>
                   </div>
-                  <span className="text-[13px] text-[#504440]">
-                    Hiển thị{" "}
-                    <span className="font-bold text-[#2c1810]">
-                      {filtered.length}
-                    </span>{" "}
-                    giao dịch
-                  </span>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-[13px] text-[#504440]">
+                      Hiển thị{" "}
+                      <span className="font-bold text-[#2c1810]">
+                        {filtered.length}
+                      </span>{" "}
+                      giao dịch
+                    </span>
+                    {visibleOrders.some(
+                      (o) =>
+                        o.status === "CANCELLED" || o.status === "PAYMENT_FAILED"
+                    ) && (
+                      <button
+                        type="button"
+                        onClick={handleCleanCancelledOrders}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-[#8C3B32] hover:text-[#6E2822] bg-[#FAF0EE] hover:bg-[#F5E5E2] border border-[#8C3B32]/30 transition-all cursor-pointer active:scale-95 shadow-xs"
+                        title="Dọn dẹp các đơn đã hủy (chỉ ẩn khỏi danh sách hiển thị)"
+                      >
+                        <span className="material-symbols-outlined text-base">
+                          cleaning_services
+                        </span>
+                        <span>Dọn dẹp các đơn đã hủy</span>
+                      </button>
+                    )}
+                    {hiddenOrderIds.length > 0 &&
+                      !visibleOrders.some(
+                        (o) =>
+                          o.status === "CANCELLED" ||
+                          o.status === "PAYMENT_FAILED"
+                      ) && (
+                        <button
+                          type="button"
+                          onClick={handleRestoreHiddenOrders}
+                          className="inline-flex items-center gap-1 text-[11px] text-[#845326] hover:text-[#2c1810] hover:underline transition-all cursor-pointer font-medium"
+                          title="Khôi phục lại tất cả đơn đã ẩn"
+                        >
+                          <span className="material-symbols-outlined text-xs">
+                            undo
+                          </span>
+                          <span>
+                            Khôi phục hiển thị ({hiddenOrderIds.length})
+                          </span>
+                        </button>
+                      )}
+                  </div>
                 </div>
 
                 {filtered.length === 0 ? (
@@ -1000,7 +1294,17 @@ function OrdersContent() {
                 ) : (
                   <div className="grid grid-cols-1 gap-3">
                     {filtered.map((order) => (
-                      <OrderCard key={order.id} order={order} />
+                      <OrderCard
+                        key={order.id}
+                        order={order}
+                        onCancel={handleCancelSingleOrder}
+                        onDelete={handleDeleteOrder}
+                        onExpire={() => {
+                          apiFetch("/orders/me")
+                            .then((r) => (r.ok ? r.json() : []))
+                            .then((d) => Array.isArray(d) && setOrders(d));
+                        }}
+                      />
                     ))}
                   </div>
                 )}

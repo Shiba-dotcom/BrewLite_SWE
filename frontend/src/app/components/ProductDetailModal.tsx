@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Product, normalizeStitchImageUrl } from "../menu/page";
+import { isBakeryProduct } from "../store/cartStore";
 
 export interface ToppingItem {
   id: string;
@@ -25,6 +26,8 @@ export interface CustomizationDetails {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  isBakery?: boolean;
+  servingStyle?: string;
 }
 
 export interface ProductDetailModalProps {
@@ -45,6 +48,8 @@ export interface ProductDetailModalProps {
     toppings?: string[];
     notes?: string;
     quantity?: number;
+    servingStyle?: string;
+    isBakery?: boolean;
   };
   actionLabel?: string;
 }
@@ -76,6 +81,47 @@ const AVAILABLE_TOPPINGS: ToppingItem[] = [
   },
 ];
 
+export const AVAILABLE_BAKERY_TOPPINGS: ToppingItem[] = [
+  {
+    id: "bakery_butter",
+    name: "Bơ lạt Anchor".normalize("NFC"),
+    subtext: "Bơ New Zealand thơm béo ngậy".normalize("NFC"),
+    price: 5000,
+  },
+  {
+    id: "bakery_cream_cheese",
+    name: "Phô mai kem".normalize("NFC"),
+    subtext: "Phô mai tươi chua nhẹ, ngậy béo".normalize("NFC"),
+    price: 10000,
+  },
+  {
+    id: "bakery_jam",
+    name: "Mứt dâu tây".normalize("NFC"),
+    subtext: "Dâu tây Đà Lạt nguyên quả chua ngọt".normalize("NFC"),
+    price: 8000,
+  },
+  {
+    id: "bakery_choco",
+    name: "Xốt sô-cô-la ấm".normalize("NFC"),
+    subtext: "Socola Bỉ đun chảy đậm đà".normalize("NFC"),
+    price: 10000,
+  },
+];
+
+const BAKERY_NOTE_CHIPS = [
+  "+ Hâm thật nóng",
+  "+ Cắt đôi bánh",
+  "+ Thêm túi mang đi",
+  "+ Thêm sốt trực tiếp vào bánh",
+];
+
+const DRINK_NOTE_CHIPS = [
+  "+ Ít sữa đặc",
+  "+ Đá riêng ly nhựa",
+  "+ Cắt đôi bánh",
+  "+ Thêm túi mang đi",
+];
+
 export default function ProductDetailModal({
   product,
   isOpen,
@@ -86,6 +132,11 @@ export default function ProductDetailModal({
   actionLabel,
 }: ProductDetailModalProps) {
   // State for customization options
+  const isBakery = useMemo(() => isBakeryProduct(product), [product]);
+  const currentAvailableToppings = useMemo(() => {
+    return isBakery ? AVAILABLE_BAKERY_TOPPINGS : AVAILABLE_TOPPINGS;
+  }, [isBakery]);
+
   const [selectedSize, setSelectedSize] = useState<"S" | "M" | "L">("M");
   const [temperature, setTemperature] = useState<"iced" | "hot">("iced");
   const [sweetness, setSweetness] = useState<string>("100%");
@@ -105,7 +156,7 @@ export default function ProductDetailModal({
         setTemperature(initialCustomization.temp || "iced");
         setSweetness(initialCustomization.sweetness || "100%");
         setIceLevel(initialCustomization.ice || "Đá thường (100%)");
-        const matchingToppings = AVAILABLE_TOPPINGS.filter((t) =>
+        const matchingToppings = currentAvailableToppings.filter((t) =>
           initialCustomization.toppings?.some(
             (top) =>
               top.toLowerCase().includes(t.name.toLowerCase()) ||
@@ -119,8 +170,18 @@ export default function ProductDetailModal({
         setShowToast(false);
       } else {
         setSelectedSize("M");
-        // If product only supports hot, default to hot
-        if (
+        if (isBakery) {
+          const n = (product.name || "").toLowerCase();
+          if (
+            n.includes("cheesecake") ||
+            n.includes("tiramisu") ||
+            n.includes("mousse")
+          ) {
+            setTemperature("iced"); // Dùng lạnh / Dùng ngay
+          } else {
+            setTemperature("hot"); // Hâm nóng giòn
+          }
+        } else if (
           product.chips?.temps &&
           product.chips.temps.length === 1 &&
           product.chips.temps[0].toLowerCase().includes("hot")
@@ -137,7 +198,7 @@ export default function ProductDetailModal({
         setShowToast(false);
       }
     }
-  }, [product, initialCustomization, isOpen]);
+  }, [product, initialCustomization, isOpen, isBakery, currentAvailableToppings]);
 
   // Close modal on Escape key
   useEffect(() => {
@@ -190,12 +251,12 @@ export default function ProductDetailModal({
     };
   }, []);
 
-  const sizeExtraPrice = sizeConfig[selectedSize].extra;
+  const sizeExtraPrice = isBakery ? 0 : sizeConfig[selectedSize].extra;
 
   // Selected toppings list and total extra price
   const selectedToppingsList = useMemo(() => {
-    return AVAILABLE_TOPPINGS.filter((t) => selectedToppingIds.includes(t.id));
-  }, [selectedToppingIds]);
+    return currentAvailableToppings.filter((t) => selectedToppingIds.includes(t.id));
+  }, [currentAvailableToppings, selectedToppingIds]);
 
   const toppingsExtraPrice = useMemo(() => {
     return selectedToppingsList.reduce((sum, item) => sum + item.price, 0);
@@ -240,18 +301,24 @@ export default function ProductDetailModal({
     if (!product) return;
 
     const customization: CustomizationDetails = {
-      size: selectedSize,
-      sizeExtra: sizeExtraPrice,
-      sizeLabel: sizeConfig[selectedSize].label,
+      size: isBakery ? "M" : selectedSize,
+      sizeExtra: isBakery ? 0 : sizeExtraPrice,
+      sizeLabel: isBakery ? "1 Phần" : sizeConfig[selectedSize].label,
       temp: temperature,
-      tempLabel: temperature === "iced" ? "Đá" : "Nóng",
-      sweetness,
-      ice: iceLevel,
+      tempLabel: isBakery
+        ? (temperature === "hot" ? "Hâm nóng" : "Dùng ngay")
+        : (temperature === "iced" ? "Đá" : "Nóng"),
+      sweetness: isBakery ? "" : sweetness,
+      ice: isBakery ? "" : iceLevel,
       toppings: selectedToppingsList,
       notes: baristaNotes.trim(),
       quantity,
       unitPrice,
       totalPrice,
+      isBakery,
+      servingStyle: isBakery
+        ? (temperature === "hot" ? "Hâm nóng" : "Dùng ngay")
+        : undefined,
     };
 
     if (onAddToCart) {
@@ -259,13 +326,15 @@ export default function ProductDetailModal({
     }
 
     // Trigger toast notification
-    const summary = `${quantity}x ${product.name} (Size ${selectedSize}, ${
-      temperature === "iced" ? "Đá" : "Nóng"
-    }) • ${totalPrice.toLocaleString("vi-VN")}đ`;
+    const summary = isBakery
+      ? `${quantity}x ${product.name} (${temperature === "hot" ? "Hâm nóng" : "Dùng ngay"
+      }) • ${totalPrice.toLocaleString("vi-VN")}đ`
+      : `${quantity}x ${product.name} (Size ${selectedSize}, ${temperature === "iced" ? "Đá" : "Nóng"
+      }) • ${totalPrice.toLocaleString("vi-VN")}đ`;
     setToastMessage(summary);
     setShowToast(true);
 
-    // Auto dismiss toast after 2.5s and close modal if in modal mode
+    // Auto dismiss toast after 1.8s and close modal if in modal mode
     setTimeout(() => {
       setShowToast(false);
       if (isModal) {
@@ -281,11 +350,10 @@ export default function ProductDetailModal({
     <div className="relative w-full bg-[#fef8f4] text-[#1d1b19] flex flex-col font-body">
       {/* Toast Notification Container */}
       <div
-        className={`fixed top-6 right-6 z-50 transform transition-all duration-300 pointer-events-none flex items-center gap-3 bg-[#2c1810] text-[#fef8f4] px-5 py-3 rounded-2xl shadow-2xl border border-[#febc85]/30 ${
-          showToast
-            ? "translate-y-0 opacity-100 scale-100"
-            : "-translate-y-8 opacity-0 scale-95 pointer-events-none"
-        }`}
+        className={`fixed top-6 right-6 z-50 transform transition-all duration-300 pointer-events-none flex items-center gap-3 bg-[#2c1810] text-[#fef8f4] px-5 py-3 rounded-2xl shadow-2xl border border-[#febc85]/30 ${showToast
+          ? "translate-y-0 opacity-100 scale-100"
+          : "-translate-y-8 opacity-0 scale-95 pointer-events-none"
+          }`}
         id="toast-notification"
       >
         <span
@@ -327,11 +395,10 @@ export default function ProductDetailModal({
             <button
               type="button"
               onClick={() => setIsFavorite(!isFavorite)}
-              className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                isFavorite
-                  ? "bg-[#fedcc2] text-[#845326]"
-                  : "bg-[#f3ede9] hover:bg-[#ede7e3] text-[#504440]"
-              }`}
+              className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${isFavorite
+                ? "bg-[#fedcc2] text-[#845326]"
+                : "bg-[#f3ede9] hover:bg-[#ede7e3] text-[#504440]"
+                }`}
               title="Lưu món yêu thích"
             >
               <span
@@ -373,11 +440,10 @@ export default function ProductDetailModal({
             <button
               type="button"
               onClick={() => setIsFavorite(!isFavorite)}
-              className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                isFavorite
-                  ? "bg-[#fedcc2] text-[#845326]"
-                  : "bg-[#f3ede9] hover:bg-[#ede7e3] text-[#504440]"
-              }`}
+              className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${isFavorite
+                ? "bg-[#fedcc2] text-[#845326]"
+                : "bg-[#f3ede9] hover:bg-[#ede7e3] text-[#504440]"
+                }`}
               title="Lưu món yêu thích"
             >
               <span
@@ -493,10 +559,9 @@ export default function ProductDetailModal({
                   {"Lời nhắn từ Head Barista".normalize("NFC")}
                 </span>
                 <p className="text-[12px] text-[#504440] leading-relaxed mt-1 font-body">
-                  {`“${
-                    product.description ||
+                  {`“${product.description ||
                     "Hương vị đậm đà nguyên bản phối trộn cùng công thức kem béo đặc trưng từ BrewLite, tạo nên trải nghiệm đa tầng vị độc đáo."
-                  }”`}
+                    }”`}
                 </p>
               </div>
             </div>
@@ -552,251 +617,391 @@ export default function ProductDetailModal({
 
             <div className="w-full h-px bg-[#2c1810]/10" />
 
-            {/* Customization Step 1: KÍCH THƯỚC (SIZE) */}
-            <div className="flex flex-col gap-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-[#2c1810] text-white text-[11px] flex items-center justify-center font-bold font-body">
-                    1
-                  </span>
-                  <span className="font-headline text-[16px] md:text-[18px] font-bold text-[#1d1b19]">
-                    {"Chọn Kích thước".normalize("NFC")}
-                  </span>
-                </div>
-                <span className="text-[12px] text-[#845326] font-bold font-body">
-                  {"Bắt buộc".normalize("NFC")}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3" id="size-options-group">
-                {(["S", "M", "L"] as const).map((sizeKey) => {
-                  const cfg = sizeConfig[sizeKey];
-                  const isSelected = selectedSize === sizeKey;
-
-                  return (
-                    <button
-                      key={sizeKey}
-                      type="button"
-                      onClick={() => setSelectedSize(sizeKey)}
-                      className={`flex flex-col p-3.5 rounded-2xl transition-all text-left relative cursor-pointer ${
-                        isSelected
-                          ? "bg-[#2c1810] text-white shadow-md ring-2 ring-[#2c1810]"
-                          : "bg-[#f8f2ee] hover:bg-[#f3ede9] text-[#1d1b19] border border-[#2c1810]/10"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between w-full mb-1">
-                        <span
-                          className={`material-symbols-outlined text-xl ${
-                            isSelected ? "text-[#febc85]" : "text-[#2c1810]"
-                          }`}
-                        >
-                          {cfg.icon}
-                        </span>
-                        <span
-                          className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${
-                            isSelected
-                              ? "bg-white/20 text-white"
-                              : "bg-[#ede7e3] text-[#2c1810]"
-                          }`}
-                        >
-                          {cfg.badgeText}
-                        </span>
-                      </div>
-
-                      <span
-                        className={`text-[13px] font-bold ${
-                          isSelected ? "text-white" : "text-[#1d1b19]"
-                        }`}
-                      >
-                        {cfg.label}
+            {isBakery ? (
+              <>
+                {/* Bakery Step 1: CÁCH PHỤC VỤ BÁNH */}
+                <div className="flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-[#2c1810] text-white text-[11px] flex items-center justify-center font-bold font-body">
+                        1
                       </span>
-
-                      <span
-                        className={`text-[11px] mt-0.5 ${
-                          isSelected ? "text-[#febc85] font-semibold" : "text-[#827470]"
-                        }`}
-                      >
-                        {cfg.extra === 0
-                          ? "+0đ (Gốc)"
-                          : `+${cfg.extra.toLocaleString("vi-VN")}đ${
-                              cfg.popular ? " (Phổ biến)" : ""
-                            }`}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Customization Step 2: NHIỆT ĐỘ & ĐÁ / ĐƯỜNG */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Nhiệt độ */}
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[13px] font-bold text-[#1d1b19] flex items-center gap-1.5 font-body">
-                  <span className="material-symbols-outlined text-base text-[#845326]">
-                    thermostat
-                  </span>
-                  {"Nhiệt độ (Temperature)".normalize("NFC")}
-                </span>
-
-                <div className="flex p-1 rounded-full bg-[#f8f2ee] border border-[#2c1810]/5">
-                  <button
-                    type="button"
-                    onClick={() => setTemperature("iced")}
-                    className={`flex-1 py-1.5 rounded-full text-[13px] font-bold transition-all flex items-center justify-center gap-1.5 ${
-                      temperature === "iced"
-                        ? "bg-[#2c1810] text-white shadow-sm"
-                        : "text-[#504440] hover:text-[#1d1b19]"
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-base">
-                      ac_unit
-                    </span>
-                    {"Uống Đá".normalize("NFC")}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setTemperature("hot")}
-                    className={`flex-1 py-1.5 rounded-full text-[13px] font-bold transition-all flex items-center justify-center gap-1.5 ${
-                      temperature === "hot"
-                        ? "bg-[#2c1810] text-white shadow-sm"
-                        : "text-[#504440] hover:text-[#1d1b19]"
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-base">
-                      local_fire_department
-                    </span>
-                    {"Uống Nóng".normalize("NFC")}
-                  </button>
-                </div>
-              </div>
-
-              {/* Mức đường */}
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[13px] font-bold text-[#1d1b19] flex items-center gap-1.5 font-body">
-                  <span className="material-symbols-outlined text-base text-[#845326]">
-                    cookie
-                  </span>
-                  {"Mức đường (Sweetness)".normalize("NFC")}
-                </span>
-
-                <div className="grid grid-cols-4 gap-1 p-1 rounded-full bg-[#f8f2ee] border border-[#2c1810]/5">
-                  {["100%", "70%", "50%", "0%"].map((lvl) => (
-                    <button
-                      key={lvl}
-                      type="button"
-                      onClick={() => setSweetness(lvl)}
-                      className={`py-1 rounded-full text-[12px] font-bold transition-all text-center ${
-                        sweetness === lvl
-                          ? "bg-[#2c1810] text-white shadow-sm"
-                          : "text-[#504440] hover:bg-[#ede7e3]"
-                      }`}
-                    >
-                      {lvl}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Mức đá (chỉ hiển thị khi chọn Uống Đá) */}
-            {temperature === "iced" && (
-              <div className="flex flex-col gap-1.5 animate-fadeIn">
-                <span className="text-[13px] font-bold text-[#1d1b19] flex items-center gap-1.5 font-body">
-                  <span className="material-symbols-outlined text-base text-[#845326]">
-                    icecream
-                  </span>
-                  {"Lượng đá (Ice Amount)".normalize("NFC")}
-                </span>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 rounded-2xl sm:rounded-full bg-[#f8f2ee] border border-[#2c1810]/5">
-                  {[
-                    "Đá thường (100%)",
-                    "Ít đá (70%)",
-                    "50% Đá",
-                    "Không đá (0%)",
-                  ].map((iceOption) => (
-                    <button
-                      key={iceOption}
-                      type="button"
-                      onClick={() => setIceLevel(iceOption)}
-                      className={`py-1.5 px-2 rounded-full text-[12px] font-bold transition-all text-center truncate ${
-                        iceLevel === iceOption
-                          ? "bg-[#2c1810] text-white shadow-sm"
-                          : "text-[#504440] hover:bg-[#ede7e3]"
-                      }`}
-                      title={iceOption}
-                    >
-                      {iceOption}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Customization Step 3: CHỌN TOPPING (TOPPING SELECTOR) */}
-            <div className="flex flex-col gap-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-[#2c1810] text-white text-[11px] flex items-center justify-center font-bold font-body">
-                    2
-                  </span>
-                  <span className="font-headline text-[16px] md:text-[18px] font-bold text-[#1d1b19]">
-                    {"Thêm Topping Đặc Biệt".normalize("NFC")}
-                  </span>
-                </div>
-                <span className="text-[12px] text-[#827470] font-body">
-                  {"Chọn nhiều món".normalize("NFC")}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="toppings-container">
-                {AVAILABLE_TOPPINGS.map((topping) => {
-                  const isChecked = selectedToppingIds.includes(topping.id);
-
-                  return (
-                    <div
-                      key={topping.id}
-                      onClick={() => handleToggleTopping(topping.id)}
-                      className={`flex items-center justify-between p-3.5 rounded-2xl transition-all cursor-pointer select-none ${
-                        isChecked
-                          ? "bg-[#febc85]/20 border-2 border-[#845326] shadow-sm"
-                          : "bg-[#f8f2ee] hover:bg-[#f3ede9] border border-[#2c1810]/10"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors ${
-                            isChecked
-                              ? "bg-[#845326] text-white"
-                              : "bg-[#ede7e3] text-transparent"
-                          }`}
-                        >
-                          <span className="material-symbols-outlined text-base">
-                            check
-                          </span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-[13px] font-bold text-[#1d1b19] font-body">
-                            {topping.name}
-                          </span>
-                          <span className="text-[11px] text-[#827470] font-body">
-                            {topping.subtext}
-                          </span>
-                        </div>
-                      </div>
-
-                      <span className="text-[13px] font-bold text-[#845326] font-body">
-                        +{topping.price.toLocaleString("vi-VN")}đ
+                      <span className="font-headline text-[16px] md:text-[18px] font-bold text-[#1d1b19]">
+                        {"Cách Phục Vụ Bánh".normalize("NFC")}
                       </span>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
+                    <span className="text-[12px] text-[#845326] font-bold font-body">
+                      {"Bắt buộc".normalize("NFC")}
+                    </span>
+                  </div>
 
-            {/* Customization Step 4: GHI CHÚ CHO BARISTA */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="bakery-serving-group">
+                    <button
+                      type="button"
+                      onClick={() => setTemperature("hot")}
+                      className={`flex items-start gap-3 p-3.5 rounded-2xl transition-all text-left cursor-pointer ${temperature === "hot"
+                        ? "bg-[#2c1810] text-white shadow-md ring-2 ring-[#2c1810]"
+                        : "bg-[#f8f2ee] hover:bg-[#f3ede9] text-[#1d1b19] border border-[#2c1810]/10"
+                        }`}
+                    >
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${temperature === "hot"
+                          ? "bg-white/20 text-[#febc85]"
+                          : "bg-[#ede7e3] text-[#845326]"
+                          }`}
+                      >
+                        <span className="material-symbols-outlined text-xl">
+                          local_fire_department
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <span
+                          className={`block text-[14px] font-bold leading-tight ${temperature === "hot" ? "text-white" : "text-[#1d1b19]"
+                            }`}
+                        >
+                          {"Hâm nóng".normalize("NFC")}
+                        </span>
+                        <span
+                          className={`block text-[11px] mt-1 leading-normal ${temperature === "hot" ? "text-stone-300" : "text-[#827470]"
+                            }`}
+                        >
+                          {"Nướng nóng thơm lừng, xốp giòn chuẩn vị.".normalize("NFC")}
+                        </span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setTemperature("iced")}
+                      className={`flex items-start gap-3 p-3.5 rounded-2xl transition-all text-left cursor-pointer ${temperature === "iced"
+                        ? "bg-[#2c1810] text-white shadow-md ring-2 ring-[#2c1810]"
+                        : "bg-[#f8f2ee] hover:bg-[#f3ede9] text-[#1d1b19] border border-[#2c1810]/10"
+                        }`}
+                    >
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${temperature === "iced"
+                          ? "bg-white/20 text-[#febc85]"
+                          : "bg-[#ede7e3] text-[#845326]"
+                          }`}
+                      >
+                        <span className="material-symbols-outlined text-xl">
+                          ac_unit
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <span
+                          className={`block text-[14px] font-bold leading-tight ${temperature === "iced" ? "text-white" : "text-[#1d1b19]"
+                            }`}
+                        >
+                          {"Dùng ngay".normalize("NFC")}
+                        </span>
+                        <span
+                          className={`block text-[11px] mt-1 leading-normal ${temperature === "iced" ? "text-stone-300" : "text-[#827470]"
+                            }`}
+                        >
+                          {"Bảo quản trong quầy, giữ độ mềm tự nhiên trong nhiệt độ phòng.".normalize("NFC")}
+                        </span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Bakery Step 2: MÓN ĂN KÈM (PASTRY ADD-ONS) */}
+                <div className="flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-[#2c1810] text-white text-[11px] flex items-center justify-center font-bold font-body">
+                        2
+                      </span>
+                      <span className="font-headline text-[16px] md:text-[18px] font-bold text-[#1d1b19]">
+                        {"Thêm Món Ăn Kèm (Pastry Add-ons)".normalize("NFC")}
+                      </span>
+                    </div>
+                    <span className="text-[12px] text-[#827470] font-body">
+                      {"Chọn nhiều món".normalize("NFC")}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="bakery-toppings-container">
+                    {AVAILABLE_BAKERY_TOPPINGS.map((topping) => {
+                      const isChecked = selectedToppingIds.includes(topping.id);
+
+                      return (
+                        <div
+                          key={topping.id}
+                          onClick={() => handleToggleTopping(topping.id)}
+                          className={`flex items-center justify-between p-3.5 rounded-2xl transition-all cursor-pointer select-none ${isChecked
+                            ? "bg-[#febc85]/20 border-2 border-[#845326] shadow-sm"
+                            : "bg-[#f8f2ee] hover:bg-[#f3ede9] border border-[#2c1810]/10"
+                            }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors ${isChecked
+                                ? "bg-[#845326] text-white"
+                                : "bg-[#ede7e3] text-transparent"
+                                }`}
+                            >
+                              <span className="material-symbols-outlined text-base">
+                                check
+                              </span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[13px] font-bold text-[#1d1b19] font-body">
+                                {topping.name}
+                              </span>
+                              <span className="text-[11px] text-[#827470] font-body">
+                                {topping.subtext}
+                              </span>
+                            </div>
+                          </div>
+
+                          <span className="text-[13px] font-bold text-[#845326] font-body">
+                            +{topping.price.toLocaleString("vi-VN")}đ
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Customization Step 1: KÍCH THƯỚC (SIZE) */}
+                <div className="flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-[#2c1810] text-white text-[11px] flex items-center justify-center font-bold font-body">
+                        1
+                      </span>
+                      <span className="font-headline text-[16px] md:text-[18px] font-bold text-[#1d1b19]">
+                        {"Chọn Kích thước".normalize("NFC")}
+                      </span>
+                    </div>
+                    <span className="text-[12px] text-[#845326] font-bold font-body">
+                      {"Bắt buộc".normalize("NFC")}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3" id="size-options-group">
+                    {(["S", "M", "L"] as const).map((sizeKey) => {
+                      const cfg = sizeConfig[sizeKey];
+                      const isSelected = selectedSize === sizeKey;
+
+                      return (
+                        <button
+                          key={sizeKey}
+                          type="button"
+                          onClick={() => setSelectedSize(sizeKey)}
+                          className={`flex flex-col p-3.5 rounded-2xl transition-all text-left relative cursor-pointer ${isSelected
+                            ? "bg-[#2c1810] text-white shadow-md ring-2 ring-[#2c1810]"
+                            : "bg-[#f8f2ee] hover:bg-[#f3ede9] text-[#1d1b19] border border-[#2c1810]/10"
+                            }`}
+                        >
+                          <div className="flex items-center justify-between w-full mb-1">
+                            <span
+                              className={`material-symbols-outlined text-xl ${isSelected ? "text-[#febc85]" : "text-[#2c1810]"
+                                }`}
+                            >
+                              {cfg.icon}
+                            </span>
+                            <span
+                              className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${isSelected
+                                ? "bg-white/20 text-white"
+                                : "bg-[#ede7e3] text-[#2c1810]"
+                                }`}
+                            >
+                              {cfg.badgeText}
+                            </span>
+                          </div>
+
+                          <span
+                            className={`text-[13px] font-bold ${isSelected ? "text-white" : "text-[#1d1b19]"
+                              }`}
+                          >
+                            {cfg.label}
+                          </span>
+
+                          <span
+                            className={`text-[11px] mt-0.5 ${isSelected ? "text-[#febc85] font-semibold" : "text-[#827470]"
+                              }`}
+                          >
+                            {cfg.extra === 0
+                              ? "+0đ (Gốc)"
+                              : `+${cfg.extra.toLocaleString("vi-VN")}đ${cfg.popular ? " (Phổ biến)" : ""
+                              }`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Customization Step 2: NHIỆT ĐỘ & ĐÁ / ĐƯỜNG */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Nhiệt độ */}
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[13px] font-bold text-[#1d1b19] flex items-center gap-1.5 font-body">
+                      <span className="material-symbols-outlined text-base text-[#845326]">
+                        thermostat
+                      </span>
+                      {"Nhiệt độ (Temperature)".normalize("NFC")}
+                    </span>
+
+                    <div className="flex p-1 rounded-full bg-[#f8f2ee] border border-[#2c1810]/5">
+                      <button
+                        type="button"
+                        onClick={() => setTemperature("iced")}
+                        className={`flex-1 py-1.5 rounded-full text-[13px] font-bold transition-all flex items-center justify-center gap-1.5 ${temperature === "iced"
+                          ? "bg-[#2c1810] text-white shadow-sm"
+                          : "text-[#504440] hover:text-[#1d1b19]"
+                          }`}
+                      >
+                        <span className="material-symbols-outlined text-base">
+                          ac_unit
+                        </span>
+                        {"Uống Đá".normalize("NFC")}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setTemperature("hot")}
+                        className={`flex-1 py-1.5 rounded-full text-[13px] font-bold transition-all flex items-center justify-center gap-1.5 ${temperature === "hot"
+                          ? "bg-[#2c1810] text-white shadow-sm"
+                          : "text-[#504440] hover:text-[#1d1b19]"
+                          }`}
+                      >
+                        <span className="material-symbols-outlined text-base">
+                          local_fire_department
+                        </span>
+                        {"Uống Nóng".normalize("NFC")}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Mức đường */}
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[13px] font-bold text-[#1d1b19] flex items-center gap-1.5 font-body">
+                      <span className="material-symbols-outlined text-base text-[#845326]">
+                        cookie
+                      </span>
+                      {"Mức đường (Sweetness)".normalize("NFC")}
+                    </span>
+
+                    <div className="grid grid-cols-4 gap-1 p-1 rounded-full bg-[#f8f2ee] border border-[#2c1810]/5">
+                      {["100%", "70%", "50%", "0%"].map((lvl) => (
+                        <button
+                          key={lvl}
+                          type="button"
+                          onClick={() => setSweetness(lvl)}
+                          className={`py-1 rounded-full text-[12px] font-bold transition-all text-center ${sweetness === lvl
+                            ? "bg-[#2c1810] text-white shadow-sm"
+                            : "text-[#504440] hover:bg-[#ede7e3]"
+                            }`}
+                        >
+                          {lvl}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mức đá (chỉ hiển thị khi chọn Uống Đá) */}
+                {temperature === "iced" && (
+                  <div className="flex flex-col gap-1.5 animate-fadeIn">
+                    <span className="text-[13px] font-bold text-[#1d1b19] flex items-center gap-1.5 font-body">
+                      <span className="material-symbols-outlined text-base text-[#845326]">
+                        icecream
+                      </span>
+                      {"Lượng đá (Ice Amount)".normalize("NFC")}
+                    </span>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 rounded-2xl sm:rounded-full bg-[#f8f2ee] border border-[#2c1810]/5">
+                      {[
+                        "Đá thường (100%)",
+                        "Ít đá (70%)",
+                        "50% Đá",
+                        "Không đá (0%)",
+                      ].map((iceOption) => (
+                        <button
+                          key={iceOption}
+                          type="button"
+                          onClick={() => setIceLevel(iceOption)}
+                          className={`py-1.5 px-2 rounded-full text-[12px] font-bold transition-all text-center truncate ${iceLevel === iceOption
+                            ? "bg-[#2c1810] text-white shadow-sm"
+                            : "text-[#504440] hover:bg-[#ede7e3]"
+                            }`}
+                          title={iceOption}
+                        >
+                          {iceOption}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Customization Step 3: CHỌN TOPPING (TOPPING SELECTOR) */}
+                <div className="flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-[#2c1810] text-white text-[11px] flex items-center justify-center font-bold font-body">
+                        2
+                      </span>
+                      <span className="font-headline text-[16px] md:text-[18px] font-bold text-[#1d1b19]">
+                        {"Thêm Topping Đặc Biệt".normalize("NFC")}
+                      </span>
+                    </div>
+                    <span className="text-[12px] text-[#827470] font-body">
+                      {"Chọn nhiều món".normalize("NFC")}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="toppings-container">
+                    {AVAILABLE_TOPPINGS.map((topping) => {
+                      const isChecked = selectedToppingIds.includes(topping.id);
+
+                      return (
+                        <div
+                          key={topping.id}
+                          onClick={() => handleToggleTopping(topping.id)}
+                          className={`flex items-center justify-between p-3.5 rounded-2xl transition-all cursor-pointer select-none ${isChecked
+                            ? "bg-[#febc85]/20 border-2 border-[#845326] shadow-sm"
+                            : "bg-[#f8f2ee] hover:bg-[#f3ede9] border border-[#2c1810]/10"
+                            }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors ${isChecked
+                                ? "bg-[#845326] text-white"
+                                : "bg-[#ede7e3] text-transparent"
+                                }`}
+                            >
+                              <span className="material-symbols-outlined text-base">
+                                check
+                              </span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[13px] font-bold text-[#1d1b19] font-body">
+                                {topping.name}
+                              </span>
+                              <span className="text-[11px] text-[#827470] font-body">
+                                {topping.subtext}
+                              </span>
+                            </div>
+                          </div>
+
+                          <span className="text-[13px] font-bold text-[#845326] font-body">
+                            +{topping.price.toLocaleString("vi-VN")}đ
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Customization: GHI CHÚ CHO BARISTA */}
             <div className="flex flex-col gap-2">
               <span className="text-[13px] font-bold text-[#1d1b19] flex items-center gap-1.5 font-body">
                 <span className="material-symbols-outlined text-base text-[#845326]">
@@ -806,11 +1011,7 @@ export default function ProductDetailModal({
               </span>
 
               <div className="flex flex-wrap gap-1.5">
-                {[
-                  "+ Ít ngọt tự nhiên",
-                  "+ Đá riêng ly nhựa",
-                  "🌱 Dùng ly cá nhân (-5.000đ)",
-                ].map((noteChip) => (
+                {(isBakery ? BAKERY_NOTE_CHIPS : DRINK_NOTE_CHIPS).map((noteChip) => (
                   <button
                     key={noteChip}
                     type="button"
@@ -825,9 +1026,11 @@ export default function ProductDetailModal({
               <textarea
                 value={baristaNotes}
                 onChange={(e) => setBaristaNotes(e.target.value)}
-                placeholder={"Ví dụ: Vui lòng cho ít đá, rắc thêm chút bột ca cao muối...".normalize(
-                  "NFC"
-                )}
+                placeholder={
+                  isBakery
+                    ? "Ví dụ: Hâm thật nóng, để riêng bơ và mứt, bọc kín túi mang về...".normalize("NFC")
+                    : "Ví dụ: Vui lòng cho ít đá, rắc thêm chút bột ca cao muối...".normalize("NFC")
+                }
                 rows={2}
                 className="w-full px-4 py-2.5 rounded-2xl bg-[#f8f2ee] text-[13px] text-[#1d1b19] placeholder:text-[#827470] focus:outline-none focus:ring-2 focus:ring-[#845326] border border-[#2c1810]/10 resize-none font-body"
               />
@@ -843,25 +1046,45 @@ export default function ProductDetailModal({
           <div className="flex items-center gap-3.5 w-full md:w-auto">
             <div className="w-11 h-11 rounded-2xl bg-[#f3ede9] flex items-center justify-center shrink-0 border border-[#2c1810]/5">
               <span className="material-symbols-outlined text-2xl text-[#845326]">
-                coffee_maker
+                {isBakery ? "bakery_dining" : "coffee_maker"}
               </span>
             </div>
 
             <div className="flex flex-col">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[13px] font-bold text-[#1d1b19] font-body">
-                  Size {selectedSize}
-                </span>
-                <span className="text-[#827470]">•</span>
-                <span className="text-[12px] text-[#504440] font-body">
-                  {temperature === "iced" ? "Đá" : "Nóng"}
-                </span>
-                <span className="text-[#827470]">•</span>
-                <span className="text-[12px] text-[#845326] font-semibold font-body">
-                  {selectedToppingsList.length === 0
-                    ? "Không topping".normalize("NFC")
-                    : `${selectedToppingsList.length} topping`}
-                </span>
+                {isBakery ? (
+                  <>
+                    <span className="text-[13px] font-bold text-[#1d1b19] font-body">
+                      {"1 Phần".normalize("NFC")}
+                    </span>
+                    <span className="text-[#827470]">•</span>
+                    <span className="text-[12px] text-[#504440] font-body">
+                      {temperature === "hot" ? "Hâm nóng" : "Dùng ngay"}
+                    </span>
+                    <span className="text-[#827470]">•</span>
+                    <span className="text-[12px] text-[#845326] font-semibold font-body">
+                      {selectedToppingsList.length === 0
+                        ? "Không ăn kèm".normalize("NFC")
+                        : `${selectedToppingsList.length} món ăn kèm`}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-[13px] font-bold text-[#1d1b19] font-body">
+                      Size {selectedSize}
+                    </span>
+                    <span className="text-[#827470]">•</span>
+                    <span className="text-[12px] text-[#504440] font-body">
+                      {temperature === "iced" ? "Đá" : "Nóng"}
+                    </span>
+                    <span className="text-[#827470]">•</span>
+                    <span className="text-[12px] text-[#845326] font-semibold font-body">
+                      {selectedToppingsList.length === 0
+                        ? "Không topping".normalize("NFC")
+                        : `${selectedToppingsList.length} topping`}
+                    </span>
+                  </>
+                )}
               </div>
 
               <div className="flex items-center gap-1.5 mt-0.5">

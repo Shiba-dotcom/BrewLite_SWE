@@ -27,12 +27,20 @@ import Header from "../components/Header";
 import Footer from "../components/Footer";
 import ProductDetailModal, { CustomizationDetails } from "../components/ProductDetailModal";
 import { DEFAULT_PRODUCTS, Product } from "../menu/page";
-import { useCartStore, CartItem } from "../store/cartStore";
+import { useCartStore, CartItem, isBakeryProduct } from "../store/cartStore";
 import { useAuthStore, apiFetch } from "../store/authStore";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function vnd(n: number) {
   return n.toLocaleString("vi-VN") + "đ";
+}
+
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
 }
 
 const FALLBACK_IMG = "/images/products/ca-phe-sua.png";
@@ -123,6 +131,56 @@ function Stepper({
   );
 }
 
+/** Format ice level display according to rules:
+ * - 100% -> "100% đá"
+ * - 70% / Ít đá -> "70% đá"
+ * - 50% -> "50% đá"
+ * - 0% / Không đá -> "Không đá"
+ */
+function formatIceLevel(ice?: string): string {
+  if (!ice) return "100% đá";
+  const val = ice.trim();
+  if (val.includes("100%")) return "100% đá";
+  if (val.includes("70%")) return "70% đá";
+  if (val.includes("50%")) return "50% đá";
+  if (
+    val.includes("0%") ||
+    val.toLowerCase().includes("không") ||
+    val.toLowerCase().includes("khong")
+  ) {
+    return "Không đá";
+  }
+  return val;
+}
+
+/** Format sugar level display according to rules:
+ * - 100% -> "100% đường"
+ * - 70% -> "70% đường"
+ * - 50% -> "50% đường"
+ * - 0% / Không đường -> "Không đường"
+ */
+function formatSugarLevel(sugar?: string): string {
+  if (!sugar) return "100% đường";
+  const val = sugar.trim();
+  if (
+    val === "0%" ||
+    val.toLowerCase().includes("không") ||
+    val.toLowerCase().includes("khong")
+  ) {
+    return "Không đường";
+  }
+  if (val.endsWith("%")) {
+    return `${val} đường`;
+  }
+  if (
+    !val.toLowerCase().includes("đường") &&
+    !val.toLowerCase().includes("duong")
+  ) {
+    return `${val} đường`;
+  }
+  return val;
+}
+
 /** Single cart item card */
 function CartItemCard({
   item,
@@ -135,25 +193,15 @@ function CartItemCard({
   onRequestDelete: (item: CartItem) => void;
   onEdit: (item: CartItem) => void;
 }) {
-  const isIced = item.temp === "iced" || item.temp?.toLowerCase() === "iced";
+  const isBakery = item.isBakery || isBakeryProduct(item);
+  const isWarm =
+    item.servingStyle === "Hâm nóng" ||
+    item.servingStyle === "Hâm nóng giòn" ||
+    (!item.servingStyle && (item.temperature === "HOT" || item.temp?.toLowerCase() === "hot"));
+  const isHot =
+    item.temperature === "HOT" ||
+    item.temp?.toLowerCase() === "hot";
   const totalLinePrice = item.price * item.quantity;
-
-  const subtitle =
-    item.name.toLowerCase().includes("muối")
-      ? "Phin nhôm truyền thống pha chậm × Sữa đặc nguyên kem".normalize("NFC")
-      : item.name.toLowerCase().includes("sữa đá") || item.name.toLowerCase().includes("sua da")
-        ? "Robusta Đắk Lắk đậm đặc × Sữa đặc kem béo".normalize("NFC")
-        : item.name.toLowerCase().includes("matcha")
-          ? "Matcha Uji đánh bọt × Sữa yến mạch Minor Figures".normalize("NFC")
-          : item.name.toLowerCase().includes("macchiato")
-            ? "Double espresso × Sữa nguyên kem × Caramel nghệ nhân".normalize("NFC")
-            : item.name.toLowerCase().includes("flat white")
-              ? "Double ristretto × Yến mạch Minor Figures × Vanilla Madagascar".normalize("NFC")
-              : item.name.toLowerCase().includes("cold brew")
-                ? "Ngâm lạnh 20 giờ × Nước tonic citrus × Hương hoa thảo mộc".normalize("NFC")
-                : item.name.toLowerCase().includes("chocolat") || item.name.toLowerCase().includes("cruffin")
-                  ? "Bơ Châu Âu xốp tầng tầng × Nướng mới mỗi giờ".normalize("NFC")
-                  : null;
 
   return (
     <article className="bg-white rounded-2xl shadow-xs border border-stone-100 p-4 flex gap-4 transition-all duration-300 hover:shadow-sm">
@@ -178,11 +226,6 @@ function CartItemCard({
             <h3 className="font-headline text-[15px] font-bold text-[#1d1b19] leading-snug truncate">
               {item.name}
             </h3>
-            {subtitle && (
-              <p className="text-[11px] text-stone-400 mt-0.5 line-clamp-1 font-body italic">
-                {subtitle}
-              </p>
-            )}
           </div>
 
           {/* Action buttons: Edit & Trash */}
@@ -208,36 +251,73 @@ function CartItemCard({
           </div>
         </div>
 
-        {/* Row 2: Attribute & topping badges */}
+        {/* Dòng 1: Tùy chọn cơ bản */}
         <div className="flex flex-wrap items-center gap-1.5">
-          {/* Size */}
-          {item.size && (
-            <AttributeBadge>Size {item.size}</AttributeBadge>
-          )}
-
-          {/* Ice / Hot (Icons are synchronized text-stone-900, not blue or red) */}
-          {isIced ? (
-            <AttributeBadge>
-              <Snowflake size={12} className="text-stone-900" strokeWidth={2.2} />
-              <span>{item.temp === "iced" ? "Đá thường" : item.temp}</span>
-            </AttributeBadge>
+          {isBakery ? (
+            <>
+              {/* Cách phục vụ */}
+              {isWarm ? (
+                <AttributeBadge>
+                  <Flame size={12} className="text-stone-900" strokeWidth={2.2} />
+                  <span>{"Hâm nóng".normalize("NFC")}</span>
+                </AttributeBadge>
+              ) : (
+                <AttributeBadge>
+                  <Snowflake size={12} className="text-stone-900" strokeWidth={2.2} />
+                  <span>{"Dùng ngay".normalize("NFC")}</span>
+                </AttributeBadge>
+              )}
+            </>
           ) : (
-            <AttributeBadge>
-              <Flame size={12} className="text-stone-900" strokeWidth={2.2} />
-              <span>{"Uống Nóng".normalize("NFC")}</span>
-            </AttributeBadge>
-          )}
+            <>
+              {/* 1. Kích thước (Size S/M/L) */}
+              {item.size && (
+                <AttributeBadge>Size {item.size}</AttributeBadge>
+              )}
 
-          {/* Paid toppings: Warm honey/caramel highlighted badge */}
-          {item.toppings &&
-            item.toppings.length > 0 &&
-            item.toppings.map((t) => (
-              <ToppingBadge key={t}>
-                <span className="text-[11px] font-bold">+</span>
-                <span>{t}</span>
-              </ToppingBadge>
-            ))}
+              {/* 2. Nhiệt độ (Uống Nóng / Uống Lạnh) */}
+              {isHot ? (
+                <AttributeBadge>
+                  <Flame size={12} className="text-stone-900" strokeWidth={2.2} />
+                  <span>{"Uống Nóng".normalize("NFC")}</span>
+                </AttributeBadge>
+              ) : (
+                <AttributeBadge>
+                  <Snowflake size={12} className="text-stone-900" strokeWidth={2.2} />
+                  <span>{"Uống Lạnh".normalize("NFC")}</span>
+                </AttributeBadge>
+              )}
+
+              {/* 3. Lượng đá: Uống Nóng ẩn hoàn toàn; Uống Lạnh hiển thị tag tương ứng */}
+              {!isHot && (
+                <AttributeBadge>
+                  <span>{formatIceLevel(item.iceLevel)}</span>
+                </AttributeBadge>
+              )}
+
+              {/* 4. Mức đường: Luôn hiển thị */}
+              <AttributeBadge>
+                <span>{formatSugarLevel(item.sugarLevel)}</span>
+              </AttributeBadge>
+            </>
+          )}
         </div>
+
+        {/* Dòng 2: Topping đi kèm (Cứ 2 topping xuống 1 dòng) */}
+        {item.toppings && item.toppings.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            {chunkArray(item.toppings, 2).map((pair, pIdx) => (
+              <div key={pIdx} className="flex flex-wrap items-center gap-1.5">
+                {pair.map((t) => (
+                  <ToppingBadge key={t}>
+                    <span className="text-[11px] font-bold">+</span>
+                    <span>{t}</span>
+                  </ToppingBadge>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Row 3: Price + Stepper */}
         <div className="flex items-end justify-between gap-2 mt-1">
@@ -273,6 +353,9 @@ function CartItemCard({
     </article>
   );
 }
+
+export const CartItemRow = CartItemCard;
+export { CartItemCard };
 
 // ─── Sidebar Cards ───────────────────────────────────────────────────────────
 
@@ -431,8 +514,10 @@ function SummaryCard({
 }) {
   const ECO_FEE = 0;
   const afterDiscount = Math.max(0, subtotal - discount);
-  const vat = Math.round(afterDiscount * 0.08);
-  const total = afterDiscount + vat + ECO_FEE;
+  // Thuế VAT 8% áp dụng vào giá tạm tính
+  const vat = Math.floor(afterDiscount * 0.08);
+  // Làm tròn xuống hàng nghìn VNĐ (ví dụ 144.720đ -> 144.000đ)
+  const total = Math.floor((afterDiscount + vat + ECO_FEE) / 1000) * 1000;
   const loyaltyPoints = Math.floor(total / 1000);
 
   return (
@@ -477,7 +562,7 @@ function SummaryCard({
         {/* VAT */}
         <div className="flex justify-between text-stone-600">
           <span>{"Thuế VAT (8%)".normalize("NFC")}</span>
-          <span className="text-stone-800">{vnd(vat)}</span>
+          <span className="text-stone-800 font-medium">{vnd(vat)}</span>
         </div>
 
         {/* Tích luỹ hạt thưởng */}
@@ -496,12 +581,14 @@ function SummaryCard({
       {/* Tổng cộng */}
       <div className="flex items-end justify-between gap-2">
         <div>
-          <p className="text-[11px] text-stone-400 font-body uppercase tracking-wider font-bold">
-            {"Tổng cộng".normalize("NFC")}
-          </p>
-          <p className="text-[11px] text-stone-400 font-body">
-            {"Đã bao gồm VAT".normalize("NFC")}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-[11px] text-stone-400 font-body uppercase tracking-wider font-bold">
+              {"Tổng cộng".normalize("NFC")}
+            </p>
+            <span className="text-[11px] text-stone-400 font-body font-medium">
+              {"(đã làm tròn)".normalize("NFC")}
+            </span>
+          </div>
         </div>
         <span className="text-2xl font-bold text-stone-900 leading-tight">
           {vnd(total)}
@@ -683,7 +770,7 @@ export default function CartPage() {
       : appliedPromo === "BREW10"
         ? 0.1
         : 0;
-  const discountAmount = Math.round(subtotal * discountRate);
+  const discountAmount = Math.floor(subtotal * discountRate);
 
   // Match the product for editing in modal
   const editingProduct: Product | null = useMemo(() => {
@@ -726,6 +813,18 @@ export default function CartPage() {
         })),
         discountCode: appliedPromo || undefined,
       };
+      // Tự động hủy đơn nháp cũ nếu khách hàng quay lại giỏ và bấm đặt lại (tránh sinh đơn ảo rác)
+      if (typeof window !== "undefined") {
+        const prevPendingId = sessionStorage.getItem("brewlite_active_pending_order");
+        if (prevPendingId) {
+          apiFetch(`/orders/${prevPendingId}/status`, {
+            method: "PATCH",
+            body: JSON.stringify({ status: "CANCELLED" }),
+          }).catch(() => {});
+          sessionStorage.removeItem("brewlite_active_pending_order");
+        }
+      }
+
       // apiFetch tự động đính kèm Authorization: Bearer <token>
       const res = await apiFetch("/orders", {
         method: "POST",
@@ -736,6 +835,30 @@ export default function CartPage() {
         throw new Error(err?.message ?? `Lỗi máy chủ (${res.status})`);
       }
       const data = await res.json();
+      if (typeof window !== "undefined" && data?.orderId) {
+        sessionStorage.setItem("brewlite_active_pending_order", String(data.orderId));
+        try {
+          const itemMeta = displayItems.map((item) => ({
+            productId: item.id,
+            productName: item.name,
+            size: item.size || "M",
+            temp: item.temp,
+            temperature: item.temperature,
+            iceLevel: item.iceLevel,
+            sugarLevel: item.sugarLevel,
+            servingStyle: item.servingStyle,
+            isBakery: item.isBakery,
+            toppings: item.toppings,
+            notes: item.notes,
+          }));
+          localStorage.setItem(
+            `order_customizations_${data.orderId}`,
+            JSON.stringify(itemMeta)
+          );
+        } catch {
+          // ignore storage error
+        }
+      }
       // Giữ nguyên giỏ hàng cho đến khi thanh toán thành công ở màn hình Checkout
       router.push(`/checkout?orderId=${data.orderId}`);
     } catch (e: unknown) {
@@ -754,9 +877,16 @@ export default function CartPage() {
   ) => {
     if (!editingItem) return;
     const key = getKey(editingItem);
+    const isBakery = customization.isBakery || isBakeryProduct(editingItem);
+    const isHot = customization.temp === "hot";
     updateCartItem(key, {
-      size: customization.size,
+      size: isBakery ? undefined : customization.size,
       temp: customization.temp,
+      temperature: isHot ? "HOT" : "COLD",
+      servingStyle: customization.servingStyle,
+      isBakery,
+      iceLevel: isBakery || isHot ? undefined : customization.ice,
+      sugarLevel: isBakery ? undefined : customization.sweetness,
       toppings: customization.toppings.map((t) => t.name),
       notes: customization.notes,
       quantity: customization.quantity,
@@ -770,7 +900,10 @@ export default function CartPage() {
       id: s.id,
       name: s.name,
       price: s.price,
-      temp: "hot",
+      temp: "iced",
+      temperature: "COLD",
+      servingStyle: "Dùng ngay",
+      isBakery: true,
       quantity: 1,
       imageUrl: s.img,
     });
@@ -931,7 +1064,17 @@ export default function CartPage() {
           actionLabel={"Cập nhật món".normalize("NFC")}
           initialCustomization={{
             size: (editingItem.size as "S" | "M" | "L") || "M",
-            temp: (editingItem.temp as "iced" | "hot") || "iced",
+            temp:
+              editingItem.temperature === "HOT" ||
+              editingItem.temp?.toLowerCase() === "hot" ||
+              editingItem.servingStyle === "Hâm nóng" ||
+              editingItem.servingStyle === "Hâm nóng giòn"
+                ? "hot"
+                : "iced",
+            servingStyle: editingItem.servingStyle,
+            isBakery: editingItem.isBakery || isBakeryProduct(editingItem),
+            sweetness: editingItem.sugarLevel || "100%",
+            ice: editingItem.iceLevel || "Đá thường (100%)",
             toppings: editingItem.toppings || [],
             notes: editingItem.notes || "",
             quantity: editingItem.quantity || 1,
@@ -1047,7 +1190,13 @@ export default function CartPage() {
             </span>
             <div className="flex items-center gap-1.5">
               <span className="text-[14px] font-bold">
-                {vnd(subtotal - discountAmount + Math.round((subtotal - discountAmount) * 0.08))}
+                {vnd(
+                  Math.floor(
+                    (Math.max(0, subtotal - discountAmount) +
+                      Math.floor(Math.max(0, subtotal - discountAmount) * 0.08)) /
+                      1000
+                  ) * 1000
+                )}
               </span>
               <ArrowRight size={16} strokeWidth={2.5} />
             </div>

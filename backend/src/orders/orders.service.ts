@@ -3,7 +3,10 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
 } from '@nestjs/common';
 import { OrderStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -21,8 +24,92 @@ export interface RequiredIngredientItem {
 }
 
 @Injectable()
-export class OrdersService {
+export class OrdersService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(OrdersService.name);
+  private expirationInterval: NodeJS.Timeout | null = null;
+
   constructor(private readonly prisma: PrismaService) {}
+
+  onModuleInit() {
+    // Quét và dọn dẹp các đơn PENDING quá hạn 5 phút ngay khi khởi động
+    this.cancelExpiredPendingOrders().catch((err) => {
+      this.logger.error('Lỗi khi quét đơn hết hạn lúc khởi động:', err);
+    });
+
+    // Định kỳ quét mỗi 15 giây để tự động hủy đơn PENDING quá 5 phút và hoàn trả kho
+    this.expirationInterval = setInterval(() => {
+      this.cancelExpiredPendingOrders().catch((err) => {
+        this.logger.error('Lỗi khi quét định kỳ đơn hết hạn:', err);
+      });
+    }, 15000);
+  }
+
+  onModuleDestroy() {
+    if (this.expirationInterval) {
+      clearInterval(this.expirationInterval);
+      this.expirationInterval = null;
+    }
+  }
+
+  /**
+   * Tự động quét và hủy các đơn hàng PENDING đã quá 5 phút (TTL = 5 minutes).
+   * Hoàn trả 100% nguyên vật liệu vào kho thông qua Transaction.
+   */
+  async cancelExpiredPendingOrders(): Promise<number> {
+    const EXPIRE_TIMEOUT_MS = 5 * 60 * 1000; // 5 phút
+    const expiryThreshold = new Date(Date.now() - EXPIRE_TIMEOUT_MS);
+
+    const expiredOrders = await this.prisma.order.findMany({
+      where: {
+        status: OrderStatus.PENDING,
+        createdAt: { lte: expiryThreshold },
+      },
+      include: { items: true },
+    });
+
+    if (!expiredOrders || expiredOrders.length === 0) {
+      return 0;
+    }
+
+    let cancelledCount = 0;
+    for (const order of expiredOrders) {
+      try {
+        await this.prisma.$transaction(async (tx: any) => {
+          if (tx.recipe && tx.ingredient && Array.isArray(order.items)) {
+            const requiredIngredients = await this.computeRequiredIngredients(
+              tx,
+              order.items,
+            );
+            for (const reqIng of requiredIngredients) {
+              await tx.ingredient.update({
+                where: { id: reqIng.ingredientId },
+                data: {
+                  stock: { increment: reqIng.requiredAmount },
+                  version: { increment: 1 },
+                },
+              });
+            }
+          }
+
+          await tx.order.update({
+            where: { id: order.id },
+            data: { status: OrderStatus.CANCELLED },
+          });
+        });
+        cancelledCount++;
+        this.logger.log(
+          `[Auto-Expire 5m] Đơn hàng #${order.id} đã tự động hủy do quá 5 phút chưa thanh toán. Đã hoàn trả nguyên liệu vào kho.`,
+        );
+      } catch (err) {
+        this.logger.error(
+          `Lỗi khi tự động hủy đơn hết hạn #${order.id}:`,
+          err,
+        );
+      }
+    }
+
+    return cancelledCount;
+  }
 
   /**
    * Tính toán tổng định lượng nguyên vật liệu tiêu hao cho danh sách món + topping
@@ -134,11 +221,14 @@ export class OrdersService {
         );
       }
 
-      discountAmount = Math.round(rawSubtotal * DISCOUNT_RATES[code]);
+      discountAmount = Math.floor(rawSubtotal * DISCOUNT_RATES[code]);
       appliedDiscountCode = code;
     }
 
-    const totalAmount = Math.max(0, rawSubtotal - discountAmount);
+    const afterDiscount = Math.max(0, rawSubtotal - discountAmount);
+    const vat = Math.floor(afterDiscount * 0.08);
+    // Làm tròn xuống hàng nghìn (ví dụ: 144.720đ -> 144.000đ)
+    const totalAmount = Math.floor((afterDiscount + vat) / 1000) * 1000;
 
     // 3. Transaction: Trừ tồn kho nguyên vật liệu bằng Optimistic Locking + Tạo đơn PENDING
     const order = await this.prisma.$transaction(async (tx) => {
@@ -221,6 +311,9 @@ export class OrdersService {
    * Lấy danh sách toàn bộ đơn hàng của user (Task 9 — GET /orders/me)
    */
   async getMyOrders(userId: number) {
+    // Tự động kiểm tra và hủy các đơn quá 5 phút trước khi trả về danh sách
+    await this.cancelExpiredPendingOrders().catch(() => {});
+
     const orders = await this.prisma.order.findMany({
       where: { userId },
       include: {
@@ -428,6 +521,9 @@ export class OrdersService {
   }
 
   async getOrderById(orderId: number, userId: number, userRole?: Role) {
+    // Tự động kiểm tra và hủy các đơn quá 5 phút trước khi trả về chi tiết đơn
+    await this.cancelExpiredPendingOrders().catch(() => {});
+
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -449,6 +545,90 @@ export class OrdersService {
       throw new ForbiddenException('Bạn không có quyền truy cập đơn hàng này');
     }
 
-    return order;
+    const productIds = (order.items || []).map((i) => i.productId);
+    let productMap = new Map<number, { imageUrl: string | null }>();
+    if (this.prisma.product?.findMany && productIds.length > 0) {
+      try {
+        const products = await this.prisma.product.findMany({
+          where: { id: { in: productIds } },
+          select: { id: true, imageUrl: true },
+        });
+        productMap = new Map(products.map((p) => [p.id, p]));
+      } catch {
+        // fallback if product table not accessible
+      }
+    }
+
+    return {
+      ...order,
+      items: order.items.map((item) => ({
+        ...item,
+        imageUrl: productMap.get(item.productId)?.imageUrl || null,
+      })),
+    };
+  }
+
+  /**
+   * Xóa đơn hàng đã hủy hoặc chưa thanh toán (Task xóa đơn)
+   * Chỉ cho phép xóa đơn CANCELLED, PAYMENT_FAILED, hoặc PENDING.
+   * Nếu đơn PENDING bị xóa, tự động hoàn trả nguyên vật liệu vào kho.
+   */
+  async deleteOrder(orderId: number, userId: number, userRole?: Role) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng với mã #${orderId}`);
+    }
+
+    const isStaffOrAdmin =
+      userRole === Role.STAFF || userRole === Role.ADMIN;
+
+    if (!isStaffOrAdmin && order.userId !== null && order.userId !== userId) {
+      throw new ForbiddenException('Bạn không có quyền xóa đơn hàng này');
+    }
+
+    // Chỉ cho phép xóa nếu đơn đã CANCELLED hoặc PAYMENT_FAILED hoặc PENDING
+    if (
+      order.status !== OrderStatus.CANCELLED &&
+      order.status !== OrderStatus.PAYMENT_FAILED &&
+      order.status !== OrderStatus.PENDING
+    ) {
+      throw new BadRequestException('Chỉ có thể xóa các đơn hàng đã hủy hoặc chưa thanh toán.');
+    }
+
+    // Nếu đơn PENDING bị xóa, hoàn lại nguyên vật liệu
+    if (order.status === OrderStatus.PENDING && this.prisma.$transaction) {
+      return await this.prisma.$transaction(async (tx: any) => {
+        if (tx.recipe && tx.ingredient && Array.isArray(order.items)) {
+          const requiredIngredients = await this.computeRequiredIngredients(
+            tx,
+            order.items,
+          );
+          for (const reqIng of requiredIngredients) {
+            await tx.ingredient.update({
+              where: { id: reqIng.ingredientId },
+              data: {
+                stock: { increment: reqIng.requiredAmount },
+                version: { increment: 1 },
+              },
+            });
+          }
+        }
+        await tx.payment.deleteMany({ where: { orderId } });
+        await tx.orderItem.deleteMany({ where: { orderId } });
+        await tx.order.delete({ where: { id: orderId } });
+        return { success: true, message: `Đã xóa đơn hàng #${orderId}` };
+      });
+    }
+
+    return await this.prisma.$transaction(async (tx: any) => {
+      await tx.payment.deleteMany({ where: { orderId } });
+      await tx.orderItem.deleteMany({ where: { orderId } });
+      await tx.order.delete({ where: { id: orderId } });
+      return { success: true, message: `Đã xóa đơn hàng #${orderId}` };
+    });
   }
 }
