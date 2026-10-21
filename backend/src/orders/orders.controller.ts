@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -9,13 +10,16 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { OrdersService } from './orders.service.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
+import { RolesGuard } from '../auth/roles.guard.js';
+import { Roles } from '../auth/roles.decorator.js';
 
 interface AuthRequest extends Request {
-  user: { userId: number; email: string };
+  user: { userId: number; email: string; role?: Role };
 }
 
 @Controller('orders')
@@ -25,6 +29,7 @@ export class OrdersController {
   /**
    * POST /orders — Yêu cầu JWT Bearer Token
    * userId được trích từ JWT payload, KHÔNG lấy từ body (chống IDOR)
+   * Trừ tồn kho nguyên vật liệu bằng Optimistic Locking trong Transaction
    */
   @UseGuards(JwtAuthGuard)
   @Post()
@@ -43,6 +48,17 @@ export class OrdersController {
   }
 
   /**
+   * GET /orders/barista/queue — Danh sách đơn hàng cho màn hình Barista KDS (/staff)
+   * Dành cho STAFF và ADMIN (Polling 3-5s)
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.STAFF, Role.ADMIN)
+  @Get('barista/queue')
+  getBaristaQueue() {
+    return this.ordersService.getBaristaQueue();
+  }
+
+  /**
    * GET /orders/:id — Lấy chi tiết đơn hàng cho màn hình Checkout
    * Yêu cầu JWT Bearer Token, kiểm tra quyền sở hữu đơn hàng
    */
@@ -52,12 +68,12 @@ export class OrdersController {
     @Request() req: AuthRequest,
     @Param('id', ParseIntPipe) id: number,
   ) {
-    return this.ordersService.getOrderById(id, req.user.userId);
+    return this.ordersService.getOrderById(id, req.user.userId, req.user.role);
   }
 
   /**
-   * PATCH /orders/:id/status — Cập nhật trạng thái đơn hàng thủ công (Task 10)
-   * Dành cho barista/admin: PAID → PREPARING → READY → COMPLETED
+   * PATCH /orders/:id/status — Cập nhật trạng thái đơn hàng (Task 10 & Sprint 4)
+   * Barista/Admin: PAID → PREPARING → READY → COMPLETED hoặc CANCELLED
    * State Machine Guard chặn mọi transition không hợp lệ (BadRequestException)
    */
   @UseGuards(JwtAuthGuard)
@@ -67,6 +83,23 @@ export class OrdersController {
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateOrderStatusDto,
   ) {
-    return this.ordersService.updateOrderStatus(id, dto.status, req.user.userId);
+    return this.ordersService.updateOrderStatus(
+      id,
+      dto.status,
+      req.user.userId,
+      req.user.role,
+    );
+  }
+
+  /**
+   * DELETE /orders/:id — Xóa đơn hàng đã hủy hoặc chưa thanh toán
+   */
+  @UseGuards(JwtAuthGuard)
+  @Delete(':id')
+  deleteOrder(
+    @Request() req: AuthRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.ordersService.deleteOrder(id, req.user.userId, req.user.role);
   }
 }

@@ -8,14 +8,14 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: brewlite
     ports:
-      - '5432:5432'
+      - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U postgres -d brewlite']
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   backend:
     build: ./backend
@@ -25,7 +25,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/brewlite
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/brewlite?schema=public
       JWT_SECRET: brewlite-super-secret-jwt-key-change-in-prod
       PORT: 3001
     ports:

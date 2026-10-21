@@ -3,12 +3,26 @@
 import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { Flame, Snowflake, Wheat } from "lucide-react";
 import Footer from "../components/Footer";
 import Header from "../components/Header";
 import ProductDetailModal, {
   CustomizationDetails,
 } from "../components/ProductDetailModal";
-import { useCartStore } from "../store/cartStore";
+import { useCartStore, isBakeryProduct } from "../store/cartStore";
+
+export interface ProductRecipeItem {
+  id: number;
+  size: string;
+  amount: number;
+  ingredient: {
+    id: number;
+    code: string;
+    name: string;
+    unit: string;
+    stock: number;
+  };
+}
 
 export interface Product {
   id: number;
@@ -16,6 +30,10 @@ export interface Product {
   description: string | null;
   imageUrl: string | null;
   basePrice: number;
+  stock?: number;
+  isOutOfStock?: boolean;
+  availableServings?: number;
+  recipes?: ProductRecipeItem[];
   category?: string;
   rating?: number;
   tag?: string;
@@ -375,32 +393,23 @@ export default function MenuPage() {
     product: Product,
     customization: CustomizationDetails
   ) => {
+    if (product.isOutOfStock) return;
+    const isBakery = customization.isBakery ?? isBakeryProduct(product);
+    const isHot = customization.temp === "hot";
     addItem({
       id: product.id,
       name: product.name,
       price: customization.unitPrice,
       temp: customization.temp,
+      temperature: isHot ? "HOT" : "COLD",
+      servingStyle: customization.servingStyle,
+      isBakery,
+      iceLevel: isBakery || isHot ? undefined : customization.ice,
+      sugarLevel: isBakery ? undefined : customization.sweetness,
       quantity: customization.quantity,
-      size: customization.size,
+      size: isBakery ? undefined : customization.size,
       toppings: customization.toppings.map((t) => t.name),
       notes: customization.notes,
-      imageUrl: product.imageUrl,
-    });
-
-    setBadgeAnimated(true);
-    setTimeout(() => setBadgeAnimated(false), 300);
-  };
-
-  const handleAddToCart = (product: Product) => {
-    const defaultTemp = product.chips?.temps ? product.chips.temps[0] : "Iced";
-    const temp = productTemps[product.id] || defaultTemp;
-
-    addItem({
-      id: product.id,
-      name: product.name,
-      price: product.basePrice,
-      temp,
-      quantity: 1,
       imageUrl: product.imageUrl,
     });
 
@@ -538,47 +547,68 @@ export default function MenuPage() {
                   <button
                     type="button"
                     onClick={() => setTempFilter("iced")}
-                    className={`filter-pill px-3 py-1.5 rounded-full text-[11px] font-bold transition-all ${
+                    className={`filter-pill px-3 py-1.5 rounded-full text-[11px] font-bold transition-all inline-flex items-center gap-1.5 ${
                       tempFilter === "iced"
                         ? "bg-[#2c1810] text-white"
                         : "bg-[#f3ede9] text-[#504440] hover:bg-[#ede7e3]"
                     }`}
                   >
-                    🧊 Iced
+                    <Snowflake
+                      size={13}
+                      strokeWidth={2.2}
+                      className={
+                        tempFilter === "iced" ? "text-white" : "text-[#504440]"
+                      }
+                    />
+                    <span>Iced</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setTempFilter("hot")}
-                    className={`filter-pill px-3 py-1.5 rounded-full text-[11px] font-bold transition-all ${
+                    className={`filter-pill px-3 py-1.5 rounded-full text-[11px] font-bold transition-all inline-flex items-center gap-1.5 ${
                       tempFilter === "hot"
                         ? "bg-[#2c1810] text-white"
                         : "bg-[#f3ede9] text-[#504440] hover:bg-[#ede7e3]"
                     }`}
                   >
-                    ☕ Hot
+                    <Flame
+                      size={13}
+                      strokeWidth={2.2}
+                      className={
+                        tempFilter === "hot" ? "text-white" : "text-[#504440]"
+                      }
+                    />
+                    <span>Hot</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setTempFilter("oat")}
-                    className={`filter-pill px-3 py-1.5 rounded-full text-[11px] font-bold transition-all ${
+                    className={`filter-pill px-3 py-1.5 rounded-full text-[11px] font-bold transition-all inline-flex items-center gap-1.5 ${
                       tempFilter === "oat"
                         ? "bg-[#2c1810] text-white"
                         : "bg-[#f3ede9] text-[#504440] hover:bg-[#ede7e3]"
                     }`}
                   >
-                    🌾 Oat
+                    <Wheat
+                      size={13}
+                      strokeWidth={2.2}
+                      className={
+                        tempFilter === "oat" ? "text-white" : "text-[#504440]"
+                      }
+                    />
+                    <span>Oat</span>
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Asymmetrical Feature Hero Vignette (Barista Spotlight - Original Stitch URL) */}
+            {/* Asymmetrical Feature Hero Vignette */}
             <div className="lg:col-span-5 relative">
               <div
                 className="relative rounded-3xl overflow-hidden shadow-xl bg-[#ede7e3] aspect-4/3 group cursor-pointer"
                 onClick={() =>
                   handleOpenDetail(
-                    products.find((p) => p.id === 2) || DEFAULT_PRODUCTS[1]
+                    products.find((p) => p.id === 4) || DEFAULT_PRODUCTS[3]
                   )
                 }
                 title={"Xem chi tiết & Tùy chọn Cà Phê Muối".normalize("NFC")}
@@ -656,7 +686,7 @@ export default function MenuPage() {
           <div className="flex items-center gap-2 whitespace-nowrap" id="categoryTabs">
             {CATEGORIES.map((cat) => {
               const isActive = selectedCategory === cat.id;
-              const count =
+              const catCount =
                 cat.id === "all"
                   ? products.length
                   : products.filter((p) => p.category === cat.id).length;
@@ -673,7 +703,7 @@ export default function MenuPage() {
                   }`}
                 >
                   <span>{cat.label}</span>
-                  {count > 0 && (
+                  {catCount > 0 && (
                     <span
                       className={`text-xs px-1.5 py-0.2 rounded-full ${
                         isActive
@@ -681,7 +711,7 @@ export default function MenuPage() {
                           : "bg-[#d3c3be] text-[#2c1810]"
                       }`}
                     >
-                      {count}
+                      {catCount}
                     </span>
                   )}
                 </button>
@@ -709,7 +739,7 @@ export default function MenuPage() {
           </div>
         </div>
 
-        {/* ── PRODUCT GRID: 8 HANDCRAFTED ITEMS WITH 100% STITCH IMAGES ── */}
+        {/* ── PRODUCT GRID ── */}
         {isLoading ? (
           /* Skeleton Loading */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -757,7 +787,7 @@ export default function MenuPage() {
             </button>
           </div>
         ) : (
-          /* High-DPI Retina Product Grid with 100% Original Stitch Images */
+          /* High-DPI Retina Product Grid */
           <div
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
             id="productGrid"
@@ -765,12 +795,15 @@ export default function MenuPage() {
             {filteredProducts.map((product, idx) => {
               const defaultTemp = product.chips?.temps ? product.chips.temps[0] : "Iced";
               const currentTemp = productTemps[product.id] || defaultTemp;
+              const isSoldOut = Boolean(product.isOutOfStock);
 
               return (
                 <article
                   key={product.id}
-                  className="product-card flex flex-col justify-between bg-[#f8f2ee] rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 p-3.5 group border border-[#2c1810]/5 cursor-pointer"
-                  onClick={() => handleOpenDetail(product)}
+                  className={`product-card flex flex-col justify-between bg-[#f8f2ee] rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 p-3.5 group border border-[#2c1810]/5 ${
+                    isSoldOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
+                  }`}
+                  onClick={() => !isSoldOut && handleOpenDetail(product)}
                 >
                   <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-[#ede7e3]">
                     <Image
@@ -784,15 +817,28 @@ export default function MenuPage() {
                       unoptimized
                       loading={idx < 4 ? "eager" : "lazy"}
                       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      className={`object-cover transition-transform duration-500 ${
+                        isSoldOut ? "grayscale" : "group-hover:scale-105"
+                      }`}
                     />
 
-                    {product.tag && (
-                      <div className="absolute top-2 left-2 z-10 flex flex-col gap-1 font-body">
-                        <span className="bg-[#febc85] text-[#78491d] text-[11px] px-2 py-0.5 rounded-full font-semibold shadow-sm">
-                          {product.tag}
+                    {isSoldOut ? (
+                      <div className="absolute inset-0 bg-[#2c1810]/60 backdrop-blur-[2px] flex items-center justify-center z-20">
+                        <span className="px-4 py-1.5 rounded-full bg-[#991B1B] text-white text-[12px] font-bold uppercase tracking-wider shadow-lg flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-sm">
+                            block
+                          </span>
+                          Hết hàng (Sold Out)
                         </span>
                       </div>
+                    ) : (
+                      product.tag && (
+                        <div className="absolute top-2 left-2 z-10 flex flex-col gap-1 font-body">
+                          <span className="bg-[#febc85] text-[#78491d] text-[11px] px-2 py-0.5 rounded-full font-semibold shadow-sm">
+                            {product.tag}
+                          </span>
+                        </div>
+                      )
                     )}
 
                     <div className="absolute bottom-2 right-2 z-10 bg-white/90 backdrop-blur-md px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm font-body">
@@ -823,7 +869,11 @@ export default function MenuPage() {
                             <button
                               key={temp}
                               type="button"
-                              onClick={() => handleSelectTemp(product.id, temp)}
+                              disabled={isSoldOut}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectTemp(product.id, temp);
+                              }}
                               className={`temp-chip px-2.5 py-0.5 rounded-full text-xs font-semibold transition-all ${
                                 currentTemp === temp
                                   ? "bg-[#2c1810] text-white"
@@ -856,17 +906,28 @@ export default function MenuPage() {
 
                     <button
                       type="button"
-                      className="h-10 px-4 rounded-xl bg-[#2c1810] hover:bg-[#845326] text-white flex items-center gap-1.5 transition-all active:scale-95 shadow-sm text-[13px] font-semibold font-body cursor-pointer"
+                      disabled={isSoldOut}
+                      className={`h-10 px-4 rounded-xl flex items-center gap-1.5 transition-all shadow-sm text-[13px] font-semibold font-body ${
+                        isSoldOut
+                          ? "bg-[#d3c3be] text-[#504440] cursor-not-allowed"
+                          : "bg-[#2c1810] hover:bg-[#845326] text-white active:scale-95 cursor-pointer"
+                      }`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleOpenDetail(product);
+                        if (!isSoldOut) handleOpenDetail(product);
                       }}
-                      title={"Tùy chọn món & Thêm vào giỏ".normalize("NFC")}
+                      title={
+                        isSoldOut
+                          ? "Nguyên liệu tạm hết"
+                          : "Tùy chọn món & Thêm vào giỏ".normalize("NFC")
+                      }
                     >
                       <span className="material-symbols-outlined text-lg">
-                        tune
+                        {isSoldOut ? "block" : "tune"}
                       </span>
-                      <span>{"Tùy chọn".normalize("NFC")}</span>
+                      <span>
+                        {isSoldOut ? "Hết hàng" : "Tùy chọn".normalize("NFC")}
+                      </span>
                     </button>
                   </div>
                 </article>

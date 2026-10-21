@@ -33,6 +33,12 @@ enum PaymentStatus {
   PENDING
 }
 
+enum Role {
+  CUSTOMER
+  STAFF
+  ADMIN
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model Product {
@@ -42,6 +48,44 @@ model Product {
   imageUrl    String?
   basePrice   Float
   createdAt   DateTime @default(now())
+  recipes     Recipe[]
+}
+
+model Ingredient {
+  id             Int             @id @default(autoincrement())
+  code           String          @unique
+  name           String
+  unit           String
+  stock          Float           @default(0)
+  minThreshold   Float           @default(100)
+  version        Int             @default(0) // Optimistic Locking chống bán vượt tồn kho
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  recipes        Recipe[]
+  toppingRecipes ToppingRecipe[]
+}
+
+model Recipe {
+  id           Int        @id @default(autoincrement())
+  productId    Int
+  ingredientId Int
+  size         String     @default("ALL") // S, M, L hoặc ALL (đối với bánh ngọt nhập về)
+  amount       Float
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, ingredientId, size])
+}
+
+model ToppingRecipe {
+  id           Int        @id @default(autoincrement())
+  toppingId    String     // boba, cream, jelly, shot
+  toppingName  String
+  ingredientId Int
+  amount       Float
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([toppingId, ingredientId])
 }
 
 model User {
@@ -50,16 +94,17 @@ model User {
   passwordHash  String
   fullName      String?
   phone         String?
+  role          Role     @default(CUSTOMER)
   loyaltyPoints Int      @default(0)   // Task 10: Điểm Hạt Vàng tích lũy
   createdAt     DateTime @default(now())
   orders        Order[]
 }
 
 model Order {
-  id          Int         @id @default(autoincrement())
-  userId      Int?        // nullable: cho phép test trước khi có auth (Task 7)
-  user        User?       @relation(fields: [userId], references: [id])
-  status      OrderStatus @default(PENDING)
+  id             Int         @id @default(autoincrement())
+  userId         Int?        // nullable: cho phép test trước khi có auth (Task 7)
+  user           User?       @relation(fields: [userId], references: [id])
+  status         OrderStatus @default(PENDING)
   totalAmount    Float
   discountCode   String?
   discountAmount Float       @default(0)

@@ -13,6 +13,7 @@ import {
   getProductMetadata,
   normalizeStitchImageUrl,
 } from "../page";
+import { useCartStore, isBakeryProduct } from "../../store/cartStore";
 
 export default function ProductDetailClient({
   paramsPromise,
@@ -78,10 +79,30 @@ export default function ProductDetailClient({
     router.push("/menu");
   };
 
+  const { addItem } = useCartStore();
+
   const handleAddToCart = (
-    _product: Product,
-    _customization: CustomizationDetails
+    prod: Product,
+    customization: CustomizationDetails
   ) => {
+    const isBakery = customization.isBakery ?? isBakeryProduct(prod);
+    const isHot = customization.temp === "hot";
+    addItem({
+      id: prod.id,
+      name: prod.name,
+      price: customization.unitPrice,
+      temp: customization.temp,
+      temperature: isHot ? "HOT" : "COLD",
+      servingStyle: customization.servingStyle,
+      isBakery,
+      iceLevel: isBakery || isHot ? undefined : customization.ice,
+      sugarLevel: isBakery ? undefined : customization.sweetness,
+      quantity: customization.quantity,
+      size: isBakery ? undefined : customization.size,
+      toppings: customization.toppings.map((t) => t.name),
+      notes: customization.notes,
+      imageUrl: prod.imageUrl,
+    });
     router.push("/cart");
   };
 
