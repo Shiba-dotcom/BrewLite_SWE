@@ -186,7 +186,10 @@ export const DEFAULT_PRODUCTS: Product[] = [
   },
 ];
 
-export function getProductMetadata(name: string): {
+export function getProductMetadata(
+  name: string,
+  categoryOverride?: string
+): {
   category: string;
   tag?: string;
   rating?: number;
@@ -194,6 +197,65 @@ export function getProductMetadata(name: string): {
 } {
   const n = name.toLowerCase();
   if (
+    categoryOverride === "bakery" ||
+    n.includes("bánh") ||
+    n.includes("croissant") ||
+    n.includes("pain") ||
+    n.includes("cake") ||
+    n.includes("tiramisu") ||
+    n.includes("cheesecake")
+  ) {
+    return {
+      category: "bakery",
+      tag: n.includes("cheesecake")
+        ? "Xứ Basque"
+        : n.includes("tiramisu")
+        ? "Ý truyền thống"
+        : "Nướng giòn",
+      rating: 5.0,
+      chips: { note: "🔥 Nướng thơm giòn" },
+    };
+  }
+  if (categoryOverride === "coldbrew" || n.includes("cold brew") || n.includes("ủ lạnh")) {
+    return {
+      category: "coldbrew",
+      tag: "Cold Brew",
+      rating: 4.9,
+      chips: { temps: ["Iced"], note: "Ủ lạnh 18h" },
+    };
+  }
+  if (
+    categoryOverride === "tea" ||
+    n.includes("matcha") ||
+    n.includes("trà") ||
+    n.includes("tea")
+  ) {
+    return {
+      category: "tea",
+      tag: n.includes("matcha") ? "Uji Kyoto" : "Thanh nhiệt",
+      rating: 4.8,
+      chips: {
+        temps: n.includes("matcha") ? ["Hot", "Iced"] : ["Iced"],
+        note: n.includes("matcha") ? "100% Ceremonial" : "Cam đào tươi",
+      },
+    };
+  }
+  if (
+    categoryOverride === "espresso" ||
+    n.includes("macchiato") ||
+    n.includes("espresso") ||
+    n.includes("cappuccino") ||
+    (n.includes("latte") && !n.includes("matcha"))
+  ) {
+    return {
+      category: "espresso",
+      tag: "Signature",
+      rating: 4.9,
+      chips: { temps: ["Hot", "Iced"], note: "Espresso mộc" },
+    };
+  }
+  if (
+    categoryOverride === "vietnamese" ||
     n.includes("đen") ||
     n.includes("sữa") ||
     n.includes("bạc xỉu") ||
@@ -216,51 +278,8 @@ export function getProductMetadata(name: string): {
       },
     };
   }
-  if (
-    n.includes("macchiato") ||
-    n.includes("espresso") ||
-    n.includes("cappuccino") ||
-    (n.includes("latte") && !n.includes("matcha"))
-  ) {
-    return {
-      category: "espresso",
-      tag: "Signature",
-      rating: 4.9,
-      chips: { temps: ["Hot", "Iced"], note: "Espresso mộc" },
-    };
-  }
-  if (n.includes("matcha") || n.includes("trà") || n.includes("tea")) {
-    return {
-      category: "tea",
-      tag: n.includes("matcha") ? "Uji Kyoto" : "Thanh nhiệt",
-      rating: 4.8,
-      chips: {
-        temps: n.includes("matcha") ? ["Hot", "Iced"] : ["Iced"],
-        note: n.includes("matcha") ? "100% Ceremonial" : "Cam đào tươi",
-      },
-    };
-  }
-  if (
-    n.includes("bánh") ||
-    n.includes("croissant") ||
-    n.includes("pain") ||
-    n.includes("cake") ||
-    n.includes("tiramisu") ||
-    n.includes("cheesecake")
-  ) {
-    return {
-      category: "bakery",
-      tag: n.includes("cheesecake")
-        ? "Xứ Basque"
-        : n.includes("tiramisu")
-        ? "Ý truyền thống"
-        : "Nướng giòn",
-      rating: 5.0,
-      chips: { note: "🔥 Nướng thơm giòn" },
-    };
-  }
   return {
-    category: "vietnamese",
+    category: categoryOverride || "vietnamese",
     tag: "Phổ biến",
     rating: 4.8,
     chips: { temps: ["Hot", "Iced"] },
@@ -315,7 +334,7 @@ export default function MenuPage() {
           if (Array.isArray(data) && data.length > 0) {
             setProducts(
               data.map((p) => {
-                const meta = getProductMetadata(p.name);
+                const meta = getProductMetadata(p.name, p.category);
                 return {
                   ...p,
                   name: p.name.normalize("NFC"),

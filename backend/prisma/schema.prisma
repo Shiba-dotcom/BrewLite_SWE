@@ -42,13 +42,18 @@ enum Role {
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model Product {
-  id          Int      @id @default(autoincrement())
-  name        String
-  description String?
-  imageUrl    String?
-  basePrice   Float
-  createdAt   DateTime @default(now())
-  recipes     Recipe[]
+  id              Int      @id @default(autoincrement())
+  name            String
+  description     String?
+  imageUrl        String?
+  basePrice       Float
+  category        String   @default("vietnamese") // vietnamese | espresso | tea | coldbrew | bakery
+  tag             String?  @default("Phổ biến")
+  isActive        Boolean  @default(true)         // Hiển thị trên trang /menu khách hàng
+  isSoldOutManual Boolean  @default(false)        // Báo hết hàng thủ công bởi Admin
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+  recipes         Recipe[]
 }
 
 model Ingredient {

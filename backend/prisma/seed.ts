@@ -17,6 +17,8 @@ async function main() {
         'Chiết xuất từ hạt Robusta và Arabica rang đậm mộc, mang vị đắng êm sâu lắng, hậu vị thanh nhẹ và hương thơm nồng nàn nguyên bản.',
       imageUrl: '/images/products/ca-phe-den.png',
       basePrice: 29000,
+      category: 'vietnamese',
+      tag: 'Đậm vị',
     },
     {
       name: 'Cà phê Sữa',
@@ -24,6 +26,8 @@ async function main() {
         'Sự kết hợp kinh điển giữa cà phê pha phin truyền thống đậm đà và sữa đặc sánh mịn. Từng giọt cà phê loang tự nhiên qua đá viên tạo nên vị ngọt béo, đắng dịu hài hòa.',
       imageUrl: '/images/products/ca-phe-sua.png',
       basePrice: 35000,
+      category: 'vietnamese',
+      tag: 'Phổ biến',
     },
     {
       name: 'Cà phê Bạc Xỉu',
@@ -31,6 +35,8 @@ async function main() {
         'Dòng sữa tươi thanh béo quyện cùng chút sữa đặc ngọt dịu, điểm xuyết một lớp cà phê phin thơm nhẹ trên bề mặt, mang hương vị dịu êm, ngậy béo và dễ uống.',
       imageUrl: '/images/products/ca-phe-bac-xiu.png',
       basePrice: 39000,
+      category: 'vietnamese',
+      tag: 'Béo ngậy',
     },
     {
       name: 'Cà phê Muối',
@@ -38,6 +44,8 @@ async function main() {
         'Nền cà phê sữa đá đậm vị hòa quyện cùng lớp kem bọt muối biển sánh mịn, béo mặn bồng bềnh bên trên, rắc nhẹ bột cacao nguyên chất tạo điểm nhấn tròn vị.',
       imageUrl: '/images/products/ca-phe-muoi.png',
       basePrice: 42000,
+      category: 'vietnamese',
+      tag: 'Đặc sản',
     },
     {
       name: 'Iced Caramel Macchiato',
@@ -45,6 +53,8 @@ async function main() {
         'Cà phê espresso phân tầng tinh tế cùng sữa tươi mát lạnh và siro vani ngọt dịu, phủ lớp bọt sữa dày mịn đan xen những đường sốt caramel vàng óng thơm ngậy.',
       imageUrl: '/images/products/iced-caramel-macchiato.png',
       basePrice: 49000,
+      category: 'espresso',
+      tag: 'Signature',
     },
     {
       name: 'Matcha Latte Uji',
@@ -52,6 +62,8 @@ async function main() {
         'Bột trà xanh Uji cao cấp từ Nhật Bản được đánh bọt mịn màng, hòa cùng dòng sữa tươi béo nhẹ. Thức uống mang sắc xanh ngọc bích, vị chát thanh dịu và hậu ngọt êm ái.',
       imageUrl: '/images/products/matcha-latte.png',
       basePrice: 49000,
+      category: 'tea',
+      tag: 'Uji Kyoto',
     },
     {
       name: 'Trà Đào Cam Sả',
@@ -59,6 +71,8 @@ async function main() {
         'Nền trà đen ủ lạnh ngát hương sả tươi tự nhiên, kết hợp cùng vị chua ngọt sảng khoái của tép cam vàng tươi và miếng đào giòn mọng, giúp thanh nhiệt tức thì.',
       imageUrl: '/images/products/tra-dao-cam-sa.png',
       basePrice: 45000,
+      category: 'tea',
+      tag: 'Thanh mát',
     },
     {
       name: 'Bánh Pain au Chocolat',
@@ -66,6 +80,8 @@ async function main() {
         'Lớp vỏ bánh ngàn lớp xốp giòn ôm trọn hai thanh sô-cô-la đen đậm vị tan chảy ở giữa. Sự kết hợp hoàn hảo giữa độ giòn béo của bơ và vị đắng ngọt tinh tế.',
       imageUrl: '/images/products/pain-au-chocolat.png',
       basePrice: 39000,
+      category: 'bakery',
+      tag: 'Bơ Pháp',
     },
     {
       name: 'Basque Burnt Cheesecake',
@@ -73,6 +89,8 @@ async function main() {
         'Bánh phô mai nướng cháy xém bề mặt theo phong cách xứ Basque, đượm hương caramel nướng đặc trưng. Cốt bánh mềm ngậy, mịn tan và có hậu chua thanh nhẹ từ kem phô mai.',
       imageUrl: '/images/products/basque-burnt-cheesecake.png',
       basePrice: 45000,
+      category: 'bakery',
+      tag: 'Xứ Basque',
     },
     {
       name: 'Classic Tiramisu',
@@ -80,6 +98,8 @@ async function main() {
         'Cốt bánh ladyfinger mềm mại thấm đẫm cà phê espresso đậm đặc, xen kẽ các lớp kem phô mai mascarpone béo mịn và phủ bề mặt bằng lớp bột cacao thơm bùi, đắng nhẹ.',
       imageUrl: '/images/products/classic-tiramisu.png',
       basePrice: 49000,
+      category: 'bakery',
+      tag: 'Cổ điển Ý',
     },
   ];
 
@@ -95,30 +115,36 @@ async function main() {
         'Bánh ngàn lớp nướng thủ công với bơ Pháp cao cấp. Vỏ ngoài vàng ruộm giòn tan từng lớp rụm, ruột bánh xốp mềm, thơm đậm vị bơ tự nhiên mà không gây ngấy.',
       imageUrl: '/images/products/croissant.png',
       basePrice: 35000,
+      category: 'bakery',
+      tag: 'Bơ Pháp',
     });
   }
 
   console.log('Seeding products...');
-  for (let i = 0; i < products.length; i++) {
-    const p = products[i];
-    await prisma.product.upsert({
-      where: { id: i + 1 },
-      update: {
-        name: p.name,
-        description: p.description,
-        imageUrl: p.imageUrl,
-        basePrice: p.basePrice,
-      },
-      create: {
-        id: i + 1,
-        name: p.name,
-        description: p.description,
-        imageUrl: p.imageUrl,
-        basePrice: p.basePrice,
-      },
-    });
+  const existingProductCount = await prisma.product.count();
+  if (existingProductCount === 0) {
+    for (let i = 0; i < products.length; i++) {
+      const p = products[i];
+      await prisma.product.upsert({
+        where: { id: i + 1 },
+        update: {},
+        create: {
+          id: i + 1,
+          name: p.name,
+          description: p.description,
+          imageUrl: p.imageUrl,
+          basePrice: p.basePrice,
+          category: p.category,
+          tag: p.tag,
+          isActive: true,
+          isSoldOutManual: false,
+        },
+      });
+    }
+    console.log(`Seeded ${products.length} products successfully.`);
+  } else {
+    console.log(`Products already exist (${existingProductCount}), preserving Admin customizations.`);
   }
-  console.log(`Seeded ${products.length} products successfully.`);
 
   // ─── 2. SEED INGREDIENTS (12 NGUYÊN LIỆU PHA CHẾ + 3 BÁNH NHẬP SẴN) ─────────
   const ingredientsData = [
@@ -333,25 +359,30 @@ async function main() {
   ];
 
   console.log('Seeding product recipes...');
-  for (const r of recipesData) {
-    const ingredientId = ingMap[r.ingCode];
-    if (!ingredientId) continue;
-    await prisma.recipe.upsert({
-      where: {
-        productId_ingredientId_size: {
+  const existingProductsList = await prisma.product.findMany({ select: { id: true } });
+  const existingProductIdSet = new Set(existingProductsList.map((p) => p.id));
+  const existingRecipeCount = await prisma.recipe.count();
+  if (existingRecipeCount === 0) {
+    for (const r of recipesData) {
+      const ingredientId = ingMap[r.ingCode];
+      if (!ingredientId || !existingProductIdSet.has(r.productId)) continue;
+      await prisma.recipe.upsert({
+        where: {
+          productId_ingredientId_size: {
+            productId: r.productId,
+            ingredientId,
+            size: r.size,
+          },
+        },
+        update: { amount: r.amount },
+        create: {
           productId: r.productId,
           ingredientId,
           size: r.size,
+          amount: r.amount,
         },
-      },
-      update: { amount: r.amount },
-      create: {
-        productId: r.productId,
-        ingredientId,
-        size: r.size,
-        amount: r.amount,
-      },
-    });
+      });
+    }
   }
 
   // ─── 4. SEED TOPPING RECIPES (4 LOẠI TOPPING) ───────────────────────────────
