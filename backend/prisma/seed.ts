@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Role } from '@prisma/client';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -9,6 +9,7 @@ const __dirname = path.dirname(__filename);
 const prisma = new PrismaClient();
 
 async function main() {
+  // ─── 1. SEED PRODUCTS ────────────────────────────────────────────────────────
   const baseProducts = [
     {
       name: 'Cà phê Đen',
@@ -82,7 +83,6 @@ async function main() {
     },
   ];
 
-  // Kiểm tra nếu có thêm file croissant.png thì bổ sung món Croissant
   const croissantPath = path.resolve(
     __dirname,
     '../../frontend/public/images/products/croissant.png',
@@ -120,21 +120,372 @@ async function main() {
   }
   console.log(`Seeded ${products.length} products successfully.`);
 
-  // Seed default test user (test@example.com / password123)
+  // ─── 2. SEED INGREDIENTS (12 NGUYÊN LIỆU PHA CHẾ + 3 BÁNH NHẬP SẴN) ─────────
+  const ingredientsData = [
+    {
+      code: 'ING_ROBUSTA',
+      name: 'Hạt Cà phê Robusta Đắk Lắk mộc',
+      unit: 'g',
+      stock: 5000,
+      minThreshold: 500,
+    },
+    {
+      code: 'ING_ARABICA',
+      name: 'Hạt Cà phê Arabica Cầu Đất',
+      unit: 'g',
+      stock: 3000,
+      minThreshold: 300,
+    },
+    {
+      code: 'ING_MILK_COND',
+      name: 'Sữa đặc có đường Phương Nam',
+      unit: 'ml',
+      stock: 10000,
+      minThreshold: 1000,
+    },
+    {
+      code: 'ING_MILK_FRESH',
+      name: 'Sữa tươi thanh trùng Barista',
+      unit: 'ml',
+      stock: 15000,
+      minThreshold: 1500,
+    },
+    {
+      code: 'ING_CREAM_RICH',
+      name: "Kem béo thực vật Rich's & Whipping",
+      unit: 'ml',
+      stock: 5000,
+      minThreshold: 500,
+    },
+    {
+      code: 'ING_MATCHA',
+      name: 'Bột Trà Xanh Uji Matcha Nhật Bản',
+      unit: 'g',
+      stock: 1000,
+      minThreshold: 150,
+    },
+    {
+      code: 'ING_TEA_BLACK',
+      name: 'Cốt Trà Đen Ceylon thượng hạng',
+      unit: 'ml',
+      stock: 10000,
+      minThreshold: 1000,
+    },
+    {
+      code: 'ING_PEACH',
+      name: 'Đào miếng ngâm giòn',
+      unit: 'lát',
+      stock: 200,
+      minThreshold: 30,
+    },
+    {
+      code: 'ING_SYRUP_ORANGE',
+      name: 'Siro Cam Vàng & Sả Tươi',
+      unit: 'ml',
+      stock: 3000,
+      minThreshold: 300,
+    },
+    {
+      code: 'ING_CARAMEL',
+      name: 'Sốt Caramel béo vàng óng',
+      unit: 'ml',
+      stock: 2000,
+      minThreshold: 200,
+    },
+    {
+      code: 'ING_BOBA',
+      name: 'Trân Châu Trắng 3Q giòn',
+      unit: 'g',
+      stock: 4000,
+      minThreshold: 500,
+    },
+    {
+      code: 'ING_SEA_SALT',
+      name: 'Muối Biển Hầm Tinh Khiết',
+      unit: 'g',
+      stock: 1000,
+      minThreshold: 100,
+    },
+    // 3 món bánh ngọt nhập sẵn theo số lượng đơn vị
+    {
+      code: 'ING_PAIN_AU_CHOCOLAT',
+      name: 'Bánh Pain au Chocolat (Nhập sẵn)',
+      unit: 'chiếc',
+      stock: 30,
+      minThreshold: 5,
+    },
+    {
+      code: 'ING_CHEESECAKE',
+      name: 'Bánh Basque Burnt Cheesecake (Nhập sẵn)',
+      unit: 'lát',
+      stock: 25,
+      minThreshold: 5,
+    },
+    {
+      code: 'ING_TIRAMISU',
+      name: 'Bánh Classic Tiramisu (Nhập sẵn)',
+      unit: 'phần',
+      stock: 25,
+      minThreshold: 5,
+    },
+  ];
+
+  console.log('Seeding ingredients...');
+  const ingMap: Record<string, number> = {};
+  for (const ing of ingredientsData) {
+    const record = await prisma.ingredient.upsert({
+      where: { code: ing.code },
+      update: {
+        name: ing.name,
+        unit: ing.unit,
+        stock: ing.stock,
+        minThreshold: ing.minThreshold,
+      },
+      create: ing,
+    });
+    ingMap[ing.code] = record.id;
+  }
+  console.log(`Seeded ${ingredientsData.length} ingredients successfully.`);
+
+  // ─── 3. SEED RECIPES (CÔNG THỨC ĐỊNH LƯỢNG 7 ĐỒ UỐNG + 3 BÁNH NHẬP SẴN) ────
+  const recipesData: Array<{
+    productId: number;
+    ingCode: string;
+    size: string;
+    amount: number;
+  }> = [
+    // 1. Cà phê Đen (id: 1)
+    { productId: 1, ingCode: 'ING_ROBUSTA', size: 'S', amount: 20 },
+    { productId: 1, ingCode: 'ING_ROBUSTA', size: 'M', amount: 25 },
+    { productId: 1, ingCode: 'ING_ROBUSTA', size: 'L', amount: 30 },
+
+    // 2. Cà phê Sữa (id: 2)
+    { productId: 2, ingCode: 'ING_ROBUSTA', size: 'S', amount: 20 },
+    { productId: 2, ingCode: 'ING_MILK_COND', size: 'S', amount: 30 },
+    { productId: 2, ingCode: 'ING_ROBUSTA', size: 'M', amount: 25 },
+    { productId: 2, ingCode: 'ING_MILK_COND', size: 'M', amount: 40 },
+    { productId: 2, ingCode: 'ING_ROBUSTA', size: 'L', amount: 30 },
+    { productId: 2, ingCode: 'ING_MILK_COND', size: 'L', amount: 50 },
+
+    // 3. Cà phê Bạc Xỉu (id: 3)
+    { productId: 3, ingCode: 'ING_ROBUSTA', size: 'S', amount: 12 },
+    { productId: 3, ingCode: 'ING_MILK_COND', size: 'S', amount: 35 },
+    { productId: 3, ingCode: 'ING_MILK_FRESH', size: 'S', amount: 70 },
+    { productId: 3, ingCode: 'ING_ROBUSTA', size: 'M', amount: 15 },
+    { productId: 3, ingCode: 'ING_MILK_COND', size: 'M', amount: 45 },
+    { productId: 3, ingCode: 'ING_MILK_FRESH', size: 'M', amount: 100 },
+    { productId: 3, ingCode: 'ING_ROBUSTA', size: 'L', amount: 20 },
+    { productId: 3, ingCode: 'ING_MILK_COND', size: 'L', amount: 55 },
+    { productId: 3, ingCode: 'ING_MILK_FRESH', size: 'L', amount: 130 },
+
+    // 4. Cà phê Muối (id: 4)
+    { productId: 4, ingCode: 'ING_ROBUSTA', size: 'S', amount: 20 },
+    { productId: 4, ingCode: 'ING_MILK_COND', size: 'S', amount: 25 },
+    { productId: 4, ingCode: 'ING_CREAM_RICH', size: 'S', amount: 35 },
+    { productId: 4, ingCode: 'ING_SEA_SALT', size: 'S', amount: 1 },
+    { productId: 4, ingCode: 'ING_ROBUSTA', size: 'M', amount: 25 },
+    { productId: 4, ingCode: 'ING_MILK_COND', size: 'M', amount: 35 },
+    { productId: 4, ingCode: 'ING_CREAM_RICH', size: 'M', amount: 45 },
+    { productId: 4, ingCode: 'ING_SEA_SALT', size: 'M', amount: 1.5 },
+    { productId: 4, ingCode: 'ING_ROBUSTA', size: 'L', amount: 30 },
+    { productId: 4, ingCode: 'ING_MILK_COND', size: 'L', amount: 45 },
+    { productId: 4, ingCode: 'ING_CREAM_RICH', size: 'L', amount: 60 },
+    { productId: 4, ingCode: 'ING_SEA_SALT', size: 'L', amount: 2 },
+
+    // 5. Iced Caramel Macchiato (id: 5)
+    { productId: 5, ingCode: 'ING_ARABICA', size: 'S', amount: 16 },
+    { productId: 5, ingCode: 'ING_MILK_FRESH', size: 'S', amount: 100 },
+    { productId: 5, ingCode: 'ING_CARAMEL', size: 'S', amount: 15 },
+    { productId: 5, ingCode: 'ING_ARABICA', size: 'M', amount: 20 },
+    { productId: 5, ingCode: 'ING_MILK_FRESH', size: 'M', amount: 130 },
+    { productId: 5, ingCode: 'ING_CARAMEL', size: 'M', amount: 20 },
+    { productId: 5, ingCode: 'ING_ARABICA', size: 'L', amount: 24 },
+    { productId: 5, ingCode: 'ING_MILK_FRESH', size: 'L', amount: 160 },
+    { productId: 5, ingCode: 'ING_CARAMEL', size: 'L', amount: 25 },
+
+    // 6. Matcha Latte Uji (id: 6)
+    { productId: 6, ingCode: 'ING_MATCHA', size: 'S', amount: 10 },
+    { productId: 6, ingCode: 'ING_MILK_FRESH', size: 'S', amount: 120 },
+    { productId: 6, ingCode: 'ING_MATCHA', size: 'M', amount: 14 },
+    { productId: 6, ingCode: 'ING_MILK_FRESH', size: 'M', amount: 150 },
+    { productId: 6, ingCode: 'ING_MATCHA', size: 'L', amount: 18 },
+    { productId: 6, ingCode: 'ING_MILK_FRESH', size: 'L', amount: 180 },
+
+    // 7. Trà Đào Cam Sả (id: 7)
+    { productId: 7, ingCode: 'ING_TEA_BLACK', size: 'S', amount: 120 },
+    { productId: 7, ingCode: 'ING_SYRUP_ORANGE', size: 'S', amount: 20 },
+    { productId: 7, ingCode: 'ING_PEACH', size: 'S', amount: 2 },
+    { productId: 7, ingCode: 'ING_TEA_BLACK', size: 'M', amount: 160 },
+    { productId: 7, ingCode: 'ING_SYRUP_ORANGE', size: 'M', amount: 30 },
+    { productId: 7, ingCode: 'ING_PEACH', size: 'M', amount: 3 },
+    { productId: 7, ingCode: 'ING_TEA_BLACK', size: 'L', amount: 200 },
+    { productId: 7, ingCode: 'ING_SYRUP_ORANGE', size: 'L', amount: 40 },
+    { productId: 7, ingCode: 'ING_PEACH', size: 'L', amount: 4 },
+
+    // 8. Bánh Pain au Chocolat (id: 8) — Bánh nhập về trừ theo chiếc
+    { productId: 8, ingCode: 'ING_PAIN_AU_CHOCOLAT', size: 'ALL', amount: 1 },
+
+    // 9. Basque Burnt Cheesecake (id: 9) — Bánh nhập về trừ theo lát
+    { productId: 9, ingCode: 'ING_CHEESECAKE', size: 'ALL', amount: 1 },
+
+    // 10. Classic Tiramisu (id: 10) — Bánh nhập về trừ theo phần
+    { productId: 10, ingCode: 'ING_TIRAMISU', size: 'ALL', amount: 1 },
+  ];
+
+  console.log('Seeding product recipes...');
+  for (const r of recipesData) {
+    const ingredientId = ingMap[r.ingCode];
+    if (!ingredientId) continue;
+    await prisma.recipe.upsert({
+      where: {
+        productId_ingredientId_size: {
+          productId: r.productId,
+          ingredientId,
+          size: r.size,
+        },
+      },
+      update: { amount: r.amount },
+      create: {
+        productId: r.productId,
+        ingredientId,
+        size: r.size,
+        amount: r.amount,
+      },
+    });
+  }
+
+  // ─── 4. SEED TOPPING RECIPES (4 LOẠI TOPPING) ───────────────────────────────
+  const toppingRecipesData = [
+    {
+      toppingId: 'boba',
+      toppingName: 'Trân châu trắng giòn',
+      ingCode: 'ING_BOBA',
+      amount: 40,
+    },
+    {
+      toppingId: 'cream',
+      toppingName: 'Thêm Kem Muối Béo',
+      ingCode: 'ING_CREAM_RICH',
+      amount: 35,
+    },
+    {
+      toppingId: 'cream',
+      toppingName: 'Thêm Kem Muối Béo',
+      ingCode: 'ING_SEA_SALT',
+      amount: 1,
+    },
+    {
+      toppingId: 'jelly',
+      toppingName: 'Thạch Cà Phê Phin',
+      ingCode: 'ING_ROBUSTA',
+      amount: 10,
+    },
+    {
+      toppingId: 'shot',
+      toppingName: 'Thêm 1 Shot Espresso',
+      ingCode: 'ING_ARABICA',
+      amount: 18,
+    },
+  ];
+
+  console.log('Seeding topping recipes...');
+  for (const tr of toppingRecipesData) {
+    const ingredientId = ingMap[tr.ingCode];
+    if (!ingredientId) continue;
+    await prisma.toppingRecipe.upsert({
+      where: {
+        toppingId_ingredientId: {
+          toppingId: tr.toppingId,
+          ingredientId,
+        },
+      },
+      update: {
+        toppingName: tr.toppingName,
+        amount: tr.amount,
+      },
+      create: {
+        toppingId: tr.toppingId,
+        toppingName: tr.toppingName,
+        ingredientId,
+        amount: tr.amount,
+      },
+    });
+  }
+
+  // ─── 5. SEED USERS (ADMIN, STAFF, CUSTOMER) ────────────────────────────────
   const bcrypt = await import('bcrypt');
-  const hashedPassword = await bcrypt.hash('password123', 10);
+  const adminHash = await bcrypt.hash('Admin@123', 10);
+  const staffHash = await bcrypt.hash('Staff@123', 10);
+  const khachHash = await bcrypt.hash('Password123', 10);
+  const testHash = await bcrypt.hash('password123', 10);
+
+  await prisma.user.upsert({
+    where: { email: 'admin@brewlite.vn' },
+    update: {
+      passwordHash: adminHash,
+      role: Role.ADMIN,
+      fullName: 'Quản Lý Cửa Hàng (Admin)',
+    },
+    create: {
+      email: 'admin@brewlite.vn',
+      passwordHash: adminHash,
+      role: Role.ADMIN,
+      fullName: 'Quản Lý Cửa Hàng (Admin)',
+      phone: '0901000001',
+      loyaltyPoints: 500,
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: 'staff@brewlite.vn' },
+    update: {
+      passwordHash: staffHash,
+      role: Role.STAFF,
+      fullName: 'Barista Trưởng Ca (Staff)',
+    },
+    create: {
+      email: 'staff@brewlite.vn',
+      passwordHash: staffHash,
+      role: Role.STAFF,
+      fullName: 'Barista Trưởng Ca (Staff)',
+      phone: '0901000002',
+      loyaltyPoints: 0,
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: 'khach@brewlite.vn' },
+    update: {
+      passwordHash: khachHash,
+      role: Role.CUSTOMER,
+      fullName: 'Khách Hàng Thân Thiết',
+      loyaltyPoints: 120,
+    },
+    create: {
+      email: 'khach@brewlite.vn',
+      passwordHash: khachHash,
+      role: Role.CUSTOMER,
+      fullName: 'Khách Hàng Thân Thiết',
+      phone: '0901000003',
+      loyaltyPoints: 120,
+    },
+  });
+
   await prisma.user.upsert({
     where: { email: 'test@example.com' },
     update: {
-      passwordHash: hashedPassword,
+      passwordHash: testHash,
+      role: Role.CUSTOMER,
     },
     create: {
       email: 'test@example.com',
-      passwordHash: hashedPassword,
+      passwordHash: testHash,
+      role: Role.CUSTOMER,
       fullName: 'Khách hàng Demo',
     },
   });
-  console.log('Seeded default test user: test@example.com / password123');
+
+  console.log('Seeded users: admin@brewlite.vn, staff@brewlite.vn, khach@brewlite.vn, test@example.com');
 }
 
 main()

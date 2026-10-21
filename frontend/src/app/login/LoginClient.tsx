@@ -12,12 +12,14 @@ import type { AuthUser } from "../store/authStore";
 
 type AuthMode = "login" | "register";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+
 async function apiAuth(
   mode: AuthMode,
   payload: Record<string, string | undefined>
 ): Promise<{ accessToken: string; user: AuthUser }> {
   const endpoint = mode === "login" ? "/auth/login" : "/auth/register";
-  const res = await fetch(`http://localhost:3001${endpoint}`, {
+  const res = await fetch(`${API_BASE}${endpoint}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -176,7 +178,7 @@ function BrandColumn({ mode }: { mode: AuthMode }) {
           </div>
         )}
 
-        {/* Khối Hạt Arabica Cầu Đất nguyên bản - đặt liền khối, không bị khoảng trống kéo rời */}
+        {/* Khối Hạt Arabica Cầu Đất nguyên bản */}
         <div className="mt-1 flex items-center justify-between bg-white/70 backdrop-blur-xs p-3 rounded-xl border border-[#2c1810]/5">
           <div className="flex items-center gap-2">
             <span
@@ -206,10 +208,10 @@ function BrandColumn({ mode }: { mode: AuthMode }) {
 export default function LoginClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") ?? "/cart";
+  const redirectParam = searchParams.get("redirect");
   const defaultTab = (searchParams.get("tab") as AuthMode) ?? "login";
 
-  const { setAuth, isAuthenticated, _hasHydrated } = useAuthStore();
+  const { user, setAuth, isAuthenticated, _hasHydrated } = useAuthStore();
   const { cartCount } = useCartStore();
   const [mounted, setMounted] = useState(false);
 
@@ -234,18 +236,32 @@ export default function LoginClient() {
   const [rememberMe, setRememberMe] = useState(true);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
+  const getRoleDestination = (loggedUser?: AuthUser | null) => {
+    if (redirectParam) return redirectParam;
+    if (loggedUser?.role === "ADMIN") return "/admin";
+    if (loggedUser?.role === "STAFF") return "/staff";
+    return "/menu";
+  };
+
   // Redirect nếu đã đăng nhập
   useEffect(() => {
-    if (_hasHydrated && isAuthenticated) {
-      router.replace(redirectTo);
+    if (_hasHydrated && isAuthenticated && user) {
+      router.replace(getRoleDestination(user));
     }
-  }, [_hasHydrated, isAuthenticated, redirectTo, router]);
+  }, [_hasHydrated, isAuthenticated, user, redirectParam, router]);
 
   const switchTab = (newMode: AuthMode) => {
     setMode(newMode);
     setError(null);
     setPassword("");
     setConfirmPassword("");
+  };
+
+  const handleQuickDemoFill = (demoEmail: string, demoPassword: string) => {
+    setMode("login");
+    setError(null);
+    setEmail(demoEmail);
+    setPassword(demoPassword);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -269,9 +285,9 @@ export default function LoginClient() {
         mode === "login"
           ? { email, password }
           : { email, password, fullName, phone };
-      const { accessToken, user } = await apiAuth(mode, payload);
-      setAuth(user, accessToken);
-      router.push(redirectTo);
+      const { accessToken, user: authUser } = await apiAuth(mode, payload);
+      setAuth(authUser, accessToken);
+      router.push(getRoleDestination(authUser));
     } catch (err: unknown) {
       setError(
         err instanceof Error
@@ -361,16 +377,86 @@ export default function LoginClient() {
                   </h1>
                   <p className="text-[15px] text-[#504440] mt-1 font-body">
                     {mode === "login"
-                      ? "Đăng nhập để tiếp tục đơn hàng và thanh toán không tiền mặt siêu tốc"
+                      ? "Hệ thống tự động nhận diện vai trò Khách hàng, Barista hoặc Quản lý kho"
                       : "Trải nghiệm gọi món không chạm và tích lũy ưu đãi độc quyền"}
                   </p>
                 </div>
+
+                {/* Quick Role Demo Switcher (Sprint 4 RBAC) */}
+                {mode === "login" && (
+                  <div className="p-3 rounded-2xl bg-[#f8f2ee] border border-[#2c1810]/10 flex flex-col gap-2">
+                    <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-[#845326]">
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-sm">
+                          admin_panel_settings
+                        </span>
+                        Điền nhanh tài khoản phân quyền (Demo RBAC)
+                      </span>
+                      <span className="text-[#827470] font-normal">1-Click Fill</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleQuickDemoFill("khach@brewlite.vn", "Password123")
+                        }
+                        className="px-3 py-2 rounded-xl bg-white hover:bg-[#febc85]/30 border border-[#2c1810]/10 text-left transition-all cursor-pointer group"
+                      >
+                        <div className="text-[12px] font-bold text-[#2c1810] flex items-center gap-1">
+                          <span className="material-symbols-outlined text-sm text-[#845326]">
+                            person
+                          </span>
+                          Khách hàng
+                        </div>
+                        <div className="text-[10px] text-[#827470] truncate">
+                          khach@brewlite.vn
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleQuickDemoFill("staff@brewlite.vn", "Staff@123")
+                        }
+                        className="px-3 py-2 rounded-xl bg-white hover:bg-[#febc85]/30 border border-[#2c1810]/10 text-left transition-all cursor-pointer group"
+                      >
+                        <div className="text-[12px] font-bold text-[#2c1810] flex items-center gap-1">
+                          <span className="material-symbols-outlined text-sm text-[#D97736]">
+                            coffee_maker
+                          </span>
+                          Barista KDS
+                        </div>
+                        <div className="text-[10px] text-[#827470] truncate">
+                          staff@brewlite.vn
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleQuickDemoFill("admin@brewlite.vn", "Admin@123")
+                        }
+                        className="px-3 py-2 rounded-xl bg-white hover:bg-[#febc85]/30 border border-[#2c1810]/10 text-left transition-all cursor-pointer group"
+                      >
+                        <div className="text-[12px] font-bold text-[#2c1810] flex items-center gap-1">
+                          <span className="material-symbols-outlined text-sm text-[#2D6A4F]">
+                            inventory_2
+                          </span>
+                          Admin Kho
+                        </div>
+                        <div className="text-[10px] text-[#827470] truncate">
+                          admin@brewlite.vn
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Auth Form */}
                 <form
                   id="auth-form"
                   onSubmit={handleSubmit}
-                  className="flex flex-col gap-4 mt-2"
+                  className="flex flex-col gap-4 mt-1"
                 >
                   {/* Register: Full Name */}
                   {mode === "register" && (
@@ -541,10 +627,7 @@ export default function LoginClient() {
                   {/* Remember Me / Terms */}
                   <div className="pt-1">
                     {mode === "login" ? (
-                      <div
-                        id="box-remember"
-                        className="flex items-center"
-                      >
+                      <div id="box-remember" className="flex items-center">
                         <label className="flex items-center gap-2 cursor-pointer select-none">
                           <input
                             type="checkbox"

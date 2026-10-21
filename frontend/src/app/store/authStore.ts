@@ -1,5 +1,5 @@
 /**
- * BrewLite — Zustand Auth Store (Task 7)
+ * BrewLite — Zustand Auth Store (Task 7 + Sprint 4 RBAC)
  * Quản lý trạng thái xác thực người dùng, persist vào localStorage.
  * Pattern đồng bộ với cartStore.ts (Task 5).
  */
@@ -7,11 +7,14 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
+export type UserRole = "CUSTOMER" | "STAFF" | "ADMIN";
+
 export interface AuthUser {
   id: number;
   email: string;
   fullName: string | null;
   phone: string | null;
+  role?: UserRole;
   loyaltyPoints?: number;
 }
 

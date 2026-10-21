@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RegisterDto } from './dto/register.dto.js';
@@ -19,6 +20,7 @@ function safeUser(u: {
   email: string;
   fullName: string | null;
   phone: string | null;
+  role?: Role;
   loyaltyPoints: number;
   createdAt: Date;
 }) {
@@ -27,6 +29,7 @@ function safeUser(u: {
     email: u.email,
     fullName: u.fullName,
     phone: u.phone,
+    role: u.role ?? Role.CUSTOMER,
     loyaltyPoints: u.loyaltyPoints,
     createdAt: u.createdAt,
   };
@@ -42,7 +45,6 @@ export class AuthService {
   // ─── Register ────────────────────────────────────────────────────────────────
 
   async register(dto: RegisterDto) {
-    // Kiểm tra email đã tồn tại chưa
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -60,10 +62,15 @@ export class AuthService {
         passwordHash,
         fullName: dto.fullName,
         phone: dto.phone ?? null,
+        role: Role.CUSTOMER,
       },
     });
 
-    const payload: JwtPayload = { sub: user.id, email: user.email };
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    };
     const accessToken = this.jwtService.sign(payload);
 
     return {
@@ -92,7 +99,11 @@ export class AuthService {
       );
     }
 
-    const payload: JwtPayload = { sub: user.id, email: user.email };
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    };
     const accessToken = this.jwtService.sign(payload);
 
     return {
@@ -103,9 +114,6 @@ export class AuthService {
 
   // ─── Get Profile ─────────────────────────────────────────────────────────────
 
-  /**
-   * Lấy thông tin user hiện tại kèm loyaltyPoints (Task 10)
-   */
   async getProfile(userId: number) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },

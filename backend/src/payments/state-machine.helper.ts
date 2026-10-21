@@ -3,12 +3,12 @@ import { OrderStatus } from '@prisma/client';
 
 /**
  * Danh sách các chuyển tiếp trạng thái OrderStatus hợp lệ cho luồng thanh toán (Task 8)
- * và chuẩn bị mở rộng cho toàn bộ State Machine ở Task 10.
+ * và toàn bộ State Machine ở Task 10 (bao gồm PAID -> CANCELLED theo Mục 9.1).
  */
 export const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.PENDING]: [OrderStatus.PAID, OrderStatus.PAYMENT_FAILED, OrderStatus.CANCELLED],
   [OrderStatus.PAYMENT_FAILED]: [OrderStatus.PAID, OrderStatus.PAYMENT_FAILED, OrderStatus.CANCELLED],
-  [OrderStatus.PAID]: [OrderStatus.PREPARING],
+  [OrderStatus.PAID]: [OrderStatus.PREPARING, OrderStatus.CANCELLED],
   [OrderStatus.PREPARING]: [OrderStatus.READY],
   [OrderStatus.READY]: [OrderStatus.COMPLETED],
   [OrderStatus.COMPLETED]: [],
