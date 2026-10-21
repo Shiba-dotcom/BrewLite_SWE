@@ -13,6 +13,10 @@ interface Ingredient {
   unit: string;
   stock: number;
   minThreshold: number;
+  costPerUnit?: number;
+  costPerBulkUnit?: number;
+  bulkUnitLabel?: string;
+  totalInventoryValue?: number;
   version: number;
   status: "OK" | "LOW_STOCK" | "OUT_OF_STOCK";
   percentage: number;
@@ -33,6 +37,13 @@ interface ProductItem {
   name: string;
   description: string | null;
   basePrice: number;
+  sizeUpchargeM?: number | null;
+  sizeUpchargeL?: number | null;
+  cogsSizeS?: number;
+  cogsSizeM?: number;
+  cogsSizeL?: number;
+  grossProfitS?: number;
+  marginPercentS?: number;
   imageUrl?: string | null;
   category?: string;
   tag?: string | null;
@@ -51,8 +62,42 @@ interface ToppingRecipeEntry {
   toppingId?: string;
   toppingCode?: string;
   toppingName: string;
+  subtext?: string | null;
+  price?: number;
+  isActive?: boolean;
   amount: number;
+  ingredientId?: number;
   ingredient: Ingredient;
+}
+
+interface InventoryLogEntry {
+  id: number;
+  ingredientId: number;
+  action: string;
+  changeAmount: number;
+  previousStock: number;
+  newStock: number;
+  unitCost: number;
+  totalCost: number;
+  note?: string | null;
+  performedBy?: string | null;
+  createdAt: string;
+  ingredient?: {
+    id: number;
+    code: string;
+    name: string;
+    unit: string;
+  };
+}
+
+interface VoucherAdminItem {
+  id: number;
+  code: string;
+  description: string;
+  discountPercent: number;
+  minOrderAmount: number;
+  isActive: boolean;
+  usageCount: number;
 }
 
 interface OrderItemDetail {
@@ -90,7 +135,7 @@ interface TopSellingProduct {
   orderCount: number;
 }
 
-type AdminTab = "overview" | "products" | "inventory" | "recipes" | "revenue";
+type AdminTab = "overview" | "products" | "inventory" | "recipes" | "vouchers" | "revenue";
 
 const CATEGORY_OPTIONS = [
   { id: "vietnamese", label: "Cà Phê Phin Việt Nam" },
@@ -138,6 +183,20 @@ export default function AdminPortalPage() {
     TopSellingProduct[]
   >([]);
   const [dashboardRevenue, setDashboardRevenue] = useState<number>(0);
+  const [dashboardCogsSold, setDashboardCogsSold] = useState<number>(0);
+  const [dashboardGrossProfit, setDashboardGrossProfit] = useState<number>(0);
+  const [dashboardInventoryValue, setDashboardInventoryValue] = useState<number>(0);
+  const [inventoryLogs, setInventoryLogs] = useState<InventoryLogEntry[]>([]);
+  const [vouchers, setVouchers] = useState<VoucherAdminItem[]>([]);
+  const [sizePricing, setSizePricing] = useState<{ sizeS: string; sizeM: string; sizeL: string }>({
+    sizeS: "0",
+    sizeM: "5000",
+    sizeL: "10000",
+  });
+  const [isSavingSizePricing, setIsSavingSizePricing] = useState<boolean>(false);
+  const [inlineProductDrafts, setInlineProductDrafts] = useState<
+    Record<number, { basePrice: string; description: string; sizeUpchargeM: string; sizeUpchargeL: string }>
+  >({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
@@ -156,6 +215,8 @@ export default function AdminPortalPage() {
   const [prodName, setProdName] = useState<string>("");
   const [prodDesc, setProdDesc] = useState<string>("");
   const [prodPrice, setProdPrice] = useState<string>("39000");
+  const [prodSizeUpchargeM, setProdSizeUpchargeM] = useState<string>("");
+  const [prodSizeUpchargeL, setProdSizeUpchargeL] = useState<string>("");
   const [prodCategory, setProdCategory] = useState<string>("vietnamese");
   const [prodTag, setProdTag] = useState<string>("Phổ biến");
   const [prodImageUrl, setProdImageUrl] = useState<string>(
@@ -190,6 +251,8 @@ export default function AdminPortalPage() {
     useState<Ingredient | null>(null);
   const [modalMode, setModalMode] = useState<"restock" | "set">("restock");
   const [amountInput, setAmountInput] = useState<string>("500");
+  const [restockCostInput, setRestockCostInput] = useState<string>("");
+  const [restockCostMode, setRestockCostMode] = useState<"unit" | "bulk">("bulk");
   const [noteInput, setNoteInput] = useState<string>(
     "Nhập hàng định kỳ ca sáng"
   );
@@ -203,6 +266,9 @@ export default function AdminPortalPage() {
   const [ingUnit, setIngUnit] = useState<string>("g");
   const [ingStock, setIngStock] = useState<string>("1000");
   const [ingMinThreshold, setIngMinThreshold] = useState<string>("200");
+  const [ingCostPerUnit, setIngCostPerUnit] = useState<string>("250");
+  const [ingCostBulk, setIngCostBulk] = useState<string>("250000");
+  const [inlineIngCostDrafts, setInlineIngCostDrafts] = useState<Record<number, string>>({});
   const [isSavingIng, setIsSavingIng] = useState<boolean>(false);
 
   // ─── 3. BOM RECIPES EDITOR STATES ──────────────────────────────────────────
@@ -214,6 +280,33 @@ export default function AdminPortalPage() {
   >({});
   const [editingToppingAmounts, setEditingToppingAmounts] = useState<
     Record<number, string>
+  >({});
+  const [editingToppingPrices, setEditingToppingPrices] = useState<
+    Record<number, string>
+  >({});
+  const [editingToppingNames, setEditingToppingNames] = useState<
+    Record<number, string>
+  >({});
+  const [editingToppingSubtexts, setEditingToppingSubtexts] = useState<
+    Record<number, string>
+  >({});
+  const [isToppingModalOpen, setIsToppingModalOpen] = useState<boolean>(false);
+  const [newTopCode, setNewTopCode] = useState<string>("");
+  const [newTopName, setNewTopName] = useState<string>("");
+  const [newTopSubtext, setNewTopSubtext] = useState<string>("");
+  const [newTopPrice, setNewTopPrice] = useState<string>("10000");
+  const [newTopAmount, setNewTopAmount] = useState<string>("30");
+  const [newTopIngId, setNewTopIngId] = useState<number>(0);
+  const [isSavingTopping, setIsSavingTopping] = useState<boolean>(false);
+
+  // ─── 5. VOUCHERS MANAGEMENT STATES ─────────────────────────────────────────
+  const [newVoucherCode, setNewVoucherCode] = useState<string>("");
+  const [newVoucherDesc, setNewVoucherDesc] = useState<string>("");
+  const [newVoucherPercent, setNewVoucherPercent] = useState<string>("15");
+  const [newVoucherMinOrder, setNewVoucherMinOrder] = useState<string>("0");
+  const [isSavingVoucher, setIsSavingVoucher] = useState<boolean>(false);
+  const [editingVoucherDrafts, setEditingVoucherDrafts] = useState<
+    Record<number, { discountPercent: string; minOrderAmount: string; description: string }>
   >({});
   // Add new recipe row modal
   const [bomModalProduct, setBomModalProduct] = useState<ProductItem | null>(
@@ -251,11 +344,13 @@ export default function AdminPortalPage() {
     if (!_hasHydrated || !isAuthenticated || user?.role !== "ADMIN") return;
     setIsLoading(true);
     try {
-      const [ingRes, recRes, prodRes, dashRes] = await Promise.all([
+      const [ingRes, recRes, prodRes, dashRes, logsRes, vouchersRes] = await Promise.all([
         apiFetch("/inventory/ingredients", { cache: "no-store" }),
         apiFetch("/inventory/recipes", { cache: "no-store" }),
         apiFetch("/products?includeInactive=true", { cache: "no-store" }),
         apiFetch("/inventory/dashboard", { cache: "no-store" }),
+        apiFetch("/inventory/logs?limit=40", { cache: "no-store" }),
+        apiFetch("/inventory/vouchers", { cache: "no-store" }),
       ]);
 
       if (ingRes.ok) {
@@ -288,6 +383,16 @@ export default function AdminPortalPage() {
       if (dashRes.ok) {
         const dashData = await dashRes.json();
         setDashboardRevenue(dashData?.totalRevenue ?? 0);
+        setDashboardCogsSold(dashData?.totalCogsSold ?? 0);
+        setDashboardGrossProfit(dashData?.totalGrossProfit ?? 0);
+        setDashboardInventoryValue(dashData?.totalInventoryValue ?? 0);
+        if (dashData?.sizePricing) {
+          setSizePricing({
+            sizeS: String(dashData.sizePricing.sizeS ?? 0),
+            sizeM: String(dashData.sizePricing.sizeM ?? 5000),
+            sizeL: String(dashData.sizePricing.sizeL ?? 10000),
+          });
+        }
         setAllOrders(
           Array.isArray(dashData?.recentOrders) ? dashData.recentOrders : []
         );
@@ -296,6 +401,14 @@ export default function AdminPortalPage() {
             ? dashData.topSellingProducts
             : []
         );
+      }
+      if (logsRes.ok) {
+        const logsData = await logsRes.json();
+        setInventoryLogs(Array.isArray(logsData) ? logsData : []);
+      }
+      if (vouchersRes.ok) {
+        const vData = await vouchersRes.json();
+        setVouchers(Array.isArray(vData) ? vData : []);
       }
     } catch {
       showToast("Không thể tải dữ liệu quản trị từ máy chủ");
@@ -314,6 +427,8 @@ export default function AdminPortalPage() {
     setProdName("");
     setProdDesc("");
     setProdPrice("39000");
+    setProdSizeUpchargeM("");
+    setProdSizeUpchargeL("");
     setProdCategory("vietnamese");
     setProdTag("Mới");
     setProdImageUrl("/images/products/ca-phe-sua.png");
@@ -328,6 +443,16 @@ export default function AdminPortalPage() {
     setProdName(prod.name);
     setProdDesc(prod.description || "");
     setProdPrice(String(prod.basePrice));
+    setProdSizeUpchargeM(
+      prod.sizeUpchargeM !== null && prod.sizeUpchargeM !== undefined
+        ? String(prod.sizeUpchargeM)
+        : ""
+    );
+    setProdSizeUpchargeL(
+      prod.sizeUpchargeL !== null && prod.sizeUpchargeL !== undefined
+        ? String(prod.sizeUpchargeL)
+        : ""
+    );
     setProdCategory(prod.category || "vietnamese");
     setProdTag(prod.tag || "Phổ biến");
     const img = prod.imageUrl || "/images/products/ca-phe-sua.png";
@@ -399,6 +524,10 @@ export default function AdminPortalPage() {
         name: prodName.trim(),
         description: prodDesc.trim(),
         basePrice: priceNum,
+        sizeUpchargeM:
+          prodSizeUpchargeM.trim() === "" ? null : Number(prodSizeUpchargeM),
+        sizeUpchargeL:
+          prodSizeUpchargeL.trim() === "" ? null : Number(prodSizeUpchargeL),
         category: prodCategory,
         tag: prodTag.trim() || "Phổ biến",
         imageUrl: prodImageUrl.trim() || "/images/products/ca-phe-sua.png",
@@ -430,6 +559,62 @@ export default function AdminPortalPage() {
       showToast(err instanceof Error ? err.message : "Lỗi khi lưu sản phẩm");
     } finally {
       setIsSavingProduct(false);
+    }
+  };
+
+  const handleSaveInlineProduct = async (prod: ProductItem) => {
+    const draft = inlineProductDrafts[prod.id];
+    if (!draft) return;
+    const priceNum = Number(draft.basePrice);
+    if (isNaN(priceNum) || priceNum < 0) {
+      showToast("Giá bán không hợp lệ");
+      return;
+    }
+    try {
+      const payload = {
+        basePrice: priceNum,
+        description: draft.description.trim(),
+        sizeUpchargeM:
+          draft.sizeUpchargeM.trim() === "" ? null : Number(draft.sizeUpchargeM),
+        sizeUpchargeL:
+          draft.sizeUpchargeL.trim() === "" ? null : Number(draft.sizeUpchargeL),
+      };
+      const res = await apiFetch(`/products/${prod.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("Không thể cập nhật nhanh sản phẩm");
+      showToast(`✅ Đã lưu nhanh giá bán, giá size & mô tả cho "${prod.name}"`);
+      setInlineProductDrafts((prev) => {
+        const next = { ...prev };
+        delete next[prod.id];
+        return next;
+      });
+      await fetchAdminData();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Lỗi cập nhật nhanh");
+    }
+  };
+
+  const handleSaveGlobalSizePricing = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingSizePricing(true);
+    try {
+      const res = await apiFetch("/inventory/size-pricing", {
+        method: "PATCH",
+        body: JSON.stringify({
+          sizeS: Number(sizePricing.sizeS) || 0,
+          sizeM: Number(sizePricing.sizeM) || 0,
+          sizeL: Number(sizePricing.sizeL) || 0,
+        }),
+      });
+      if (!res.ok) throw new Error("Không thể lưu cấu hình giá Size");
+      showToast("✅ Đã cập nhật bảng giá phụ thu Size S / M / L toàn cửa hàng!");
+      await fetchAdminData();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Lỗi lưu giá Size");
+    } finally {
+      setIsSavingSizePricing(false);
     }
   };
 
@@ -504,8 +689,12 @@ export default function AdminPortalPage() {
   const openRestockModal = (ing: Ingredient, mode: "restock" | "set") => {
     setSelectedIngredient(ing);
     setModalMode(mode);
+    const isBulk = ing.unit === "g" || ing.unit === "ml";
+    const unitCost = Number(ing.costPerUnit ?? 0);
+    setRestockCostMode(isBulk ? "bulk" : "unit");
+    setRestockCostInput(String(isBulk ? Math.round(unitCost * 1000) : unitCost));
     if (mode === "restock") {
-      setAmountInput(ing.unit === "g" || ing.unit === "ml" ? "1000" : "20");
+      setAmountInput(isBulk ? "1000" : "20");
       setNoteInput("Nhập kho bổ sung");
     } else {
       setAmountInput(String(ing.stock));
@@ -524,12 +713,25 @@ export default function AdminPortalPage() {
 
     setIsSubmittingModal(true);
     try {
+      const isBulk = selectedIngredient.unit === "g" || selectedIngredient.unit === "ml";
+      const rawCost = Number(restockCostInput);
+      const computedUnitCost =
+        !isNaN(rawCost) && rawCost >= 0
+          ? restockCostMode === "bulk" && isBulk
+            ? rawCost / 1000
+            : rawCost
+          : undefined;
+
       if (modalMode === "restock") {
         const res = await apiFetch(
           `/inventory/ingredients/${selectedIngredient.id}/restock`,
           {
             method: "PATCH",
-            body: JSON.stringify({ addAmount: numericVal }),
+            body: JSON.stringify({
+              addAmount: numericVal,
+              unitCost: computedUnitCost,
+              note: noteInput.trim(),
+            }),
           }
         );
         if (!res.ok) {
@@ -544,7 +746,11 @@ export default function AdminPortalPage() {
           `/inventory/ingredients/${selectedIngredient.id}/stock`,
           {
             method: "PATCH",
-            body: JSON.stringify({ stock: numericVal }),
+            body: JSON.stringify({
+              stock: numericVal,
+              costPerUnit: computedUnitCost,
+              note: noteInput.trim(),
+            }),
           }
         );
         if (!res.ok) {
@@ -571,6 +777,8 @@ export default function AdminPortalPage() {
     setIngUnit("ml");
     setIngStock("2000");
     setIngMinThreshold("300");
+    setIngCostPerUnit("45");
+    setIngCostBulk("45000");
     setIsIngFormOpen(true);
   };
 
@@ -581,7 +789,44 @@ export default function AdminPortalPage() {
     setIngUnit(ing.unit);
     setIngStock(String(ing.stock));
     setIngMinThreshold(String(ing.minThreshold));
+    const cpu = Number(ing.costPerUnit ?? 0);
+    setIngCostPerUnit(String(cpu));
+    setIngCostBulk(
+      String(ing.unit === "g" || ing.unit === "ml" ? Math.round(cpu * 1000) : cpu)
+    );
     setIsIngFormOpen(true);
+  };
+
+  const handleSaveInlineIngCost = async (ing: Ingredient) => {
+    const draft = inlineIngCostDrafts[ing.id];
+    if (draft === undefined) return;
+    const val = Number(draft);
+    if (isNaN(val) || val < 0) {
+      showToast("Giá nhập không hợp lệ");
+      return;
+    }
+    const isBulk = ing.unit === "g" || ing.unit === "ml";
+    const costPerUnit = isBulk ? val / 1000 : val;
+    try {
+      const res = await apiFetch(`/inventory/ingredients/${ing.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ costPerUnit }),
+      });
+      if (!res.ok) throw new Error("Không thể lưu giá nhập");
+      showToast(
+        `✅ Đã cập nhật giá nhập "${ing.name}" = ${val.toLocaleString("vi-VN")}đ / ${
+          isBulk ? (ing.unit === "g" ? "1 Kg" : "1 Lít") : `1 ${ing.unit}`
+        }`
+      );
+      setInlineIngCostDrafts((prev) => {
+        const next = { ...prev };
+        delete next[ing.id];
+        return next;
+      });
+      await fetchAdminData();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Lỗi cập nhật giá nhập");
+    }
   };
 
   const handleSaveIngredient = async (e: React.FormEvent) => {
@@ -605,6 +850,7 @@ export default function AdminPortalPage() {
         unit: ingUnit.trim(),
         stock: stockNum,
         minThreshold: minNum,
+        costPerUnit: Math.max(0, Number(ingCostPerUnit) || 0),
       };
       const res = await apiFetch(
         editingIng
@@ -728,24 +974,52 @@ export default function AdminPortalPage() {
     }
   };
 
-  const handleUpdateToppingAmount = async (tr: ToppingRecipeEntry) => {
-    const rawVal = editingToppingAmounts[tr.id];
-    if (rawVal === undefined) return;
-    const numVal = Number(rawVal);
-    if (isNaN(numVal) || numVal <= 0) {
-      showToast("Định lượng Topping phải lớn hơn 0");
+  const handleUpdateToppingItem = async (
+    tr: ToppingRecipeEntry,
+    overrideActive?: boolean
+  ) => {
+    const rawAmt = editingToppingAmounts[tr.id];
+    const rawPrice = editingToppingPrices[tr.id];
+    const rawName = editingToppingNames[tr.id];
+    const rawSubtext = editingToppingSubtexts[tr.id];
+
+    const numAmt = rawAmt !== undefined ? Number(rawAmt) : tr.amount;
+    const numPrice = rawPrice !== undefined ? Number(rawPrice) : Number(tr.price ?? 8000);
+    if (isNaN(numAmt) || numAmt <= 0 || isNaN(numPrice) || numPrice < 0) {
+      showToast("Giá bán hoặc định lượng Topping không hợp lệ");
       return;
     }
     try {
       const res = await apiFetch(`/inventory/topping-recipes/${tr.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ amount: numVal }),
+        body: JSON.stringify({
+          amount: numAmt,
+          price: numPrice,
+          toppingName: rawName !== undefined ? rawName.trim() : tr.toppingName,
+          subtext: rawSubtext !== undefined ? rawSubtext.trim() : tr.subtext,
+          isActive: overrideActive !== undefined ? overrideActive : tr.isActive !== false,
+        }),
       });
-      if (!res.ok) throw new Error("Không thể cập nhật định lượng Topping");
+      if (!res.ok) throw new Error("Không thể cập nhật Topping");
       showToast(
-        `✅ Đã cập nhật định lượng Topping "${tr.toppingName}" = ${numVal}${tr.ingredient?.unit}`
+        `✅ Đã cập nhật Topping "${rawName ?? tr.toppingName}" (Giá: +${numPrice.toLocaleString("vi-VN")}đ, Tiêu hao: ${numAmt}${tr.ingredient?.unit})`
       );
       setEditingToppingAmounts((prev) => {
+        const next = { ...prev };
+        delete next[tr.id];
+        return next;
+      });
+      setEditingToppingPrices((prev) => {
+        const next = { ...prev };
+        delete next[tr.id];
+        return next;
+      });
+      setEditingToppingNames((prev) => {
+        const next = { ...prev };
+        delete next[tr.id];
+        return next;
+      });
+      setEditingToppingSubtexts((prev) => {
         const next = { ...prev };
         delete next[tr.id];
         return next;
@@ -753,6 +1027,131 @@ export default function AdminPortalPage() {
       await fetchAdminData();
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Lỗi cập nhật Topping");
+    }
+  };
+
+  const handleCreateTopping = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTopName.trim() || !newTopCode.trim() || !newTopIngId) {
+      showToast("Vui lòng điền mã, tên Topping và chọn nguyên liệu");
+      return;
+    }
+    setIsSavingTopping(true);
+    try {
+      const res = await apiFetch("/inventory/topping-recipes", {
+        method: "POST",
+        body: JSON.stringify({
+          toppingId: newTopCode.trim().toLowerCase(),
+          toppingName: newTopName.trim(),
+          subtext: newTopSubtext.trim() || "Topping đặc biệt",
+          price: Number(newTopPrice) || 8000,
+          amount: Number(newTopAmount) || 25,
+          ingredientId: Number(newTopIngId),
+          isActive: true,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Không thể thêm Topping");
+      }
+      showToast(`✅ Đã lưu Topping "${newTopName.trim()}" vào Menu!`);
+      setIsToppingModalOpen(false);
+      setNewTopCode("");
+      setNewTopName("");
+      setNewTopSubtext("");
+      await fetchAdminData();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Lỗi thêm Topping");
+    } finally {
+      setIsSavingTopping(false);
+    }
+  };
+
+  const handleDeleteTopping = async (tr: ToppingRecipeEntry) => {
+    try {
+      const res = await apiFetch(`/inventory/topping-recipes/${tr.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Không thể xóa Topping");
+      showToast(`🗑️ Đã xóa Topping "${tr.toppingName}"`);
+      await fetchAdminData();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Lỗi xóa Topping");
+    }
+  };
+
+  // ─── VOUCHER HANDLERS ──────────────────────────────────────────────────────
+  const handleCreateVoucher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newVoucherCode.trim()) {
+      showToast("Vui lòng nhập mã giảm giá");
+      return;
+    }
+    setIsSavingVoucher(true);
+    try {
+      const res = await apiFetch("/inventory/vouchers", {
+        method: "POST",
+        body: JSON.stringify({
+          code: newVoucherCode.trim().toUpperCase(),
+          description: newVoucherDesc.trim() || `Giảm ${newVoucherPercent}% đơn hàng`,
+          discountPercent: Number(newVoucherPercent) || 10,
+          minOrderAmount: Number(newVoucherMinOrder) || 0,
+          isActive: true,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Không thể tạo mã giảm giá");
+      }
+      showToast(`✅ Đã tạo mã giảm giá ${newVoucherCode.trim().toUpperCase()} (-${newVoucherPercent}%)`);
+      setNewVoucherCode("");
+      setNewVoucherDesc("");
+      await fetchAdminData();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Lỗi tạo mã giảm giá");
+    } finally {
+      setIsSavingVoucher(false);
+    }
+  };
+
+  const handleUpdateVoucher = async (
+    v: VoucherAdminItem,
+    overrideActive?: boolean
+  ) => {
+    const draft = editingVoucherDrafts[v.id];
+    try {
+      const res = await apiFetch(`/inventory/vouchers/${v.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          discountPercent: draft ? Number(draft.discountPercent) : v.discountPercent,
+          minOrderAmount: draft ? Number(draft.minOrderAmount) : v.minOrderAmount,
+          description: draft ? draft.description : v.description,
+          isActive: overrideActive !== undefined ? overrideActive : v.isActive,
+        }),
+      });
+      if (!res.ok) throw new Error("Không thể cập nhật mã giảm giá");
+      showToast(`✅ Đã cập nhật mã giảm giá ${v.code}`);
+      setEditingVoucherDrafts((prev) => {
+        const next = { ...prev };
+        delete next[v.id];
+        return next;
+      });
+      await fetchAdminData();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Lỗi cập nhật mã giảm giá");
+    }
+  };
+
+  const handleDeleteVoucher = async (v: VoucherAdminItem) => {
+    try {
+      const res = await apiFetch(`/inventory/vouchers/${v.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Không thể xóa mã giảm giá");
+      showToast(`🗑️ Đã xóa mã giảm giá ${v.code}`);
+      await fetchAdminData();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Lỗi xóa mã giảm giá");
     }
   };
 
@@ -951,7 +1350,14 @@ export default function AdminPortalPage() {
               {
                 id: "recipes" as AdminTab,
                 icon: "science",
-                label: "Định Lượng BOM",
+                label: "BOM & Giá Topping",
+                badge: toppingRecipes.length,
+              },
+              {
+                id: "vouchers" as AdminTab,
+                icon: "loyalty",
+                label: "Mã Giảm Giá (Voucher)",
+                badge: vouchers.length,
               },
               {
                 id: "revenue" as AdminTab,
@@ -1041,7 +1447,9 @@ export default function AdminPortalPage() {
               {activeTab === "inventory" &&
                 "Quản Lý Kho Nguyên Vật Liệu (Inventory CRUD)"}
               {activeTab === "recipes" &&
-                "Thiết Lập Định Lượng Công Thức (BOM Editor)"}
+                "Thiết Lập Định Lượng BOM & Quản Lý Giá Topping"}
+              {activeTab === "vouchers" &&
+                "Quản Lý Mã Giảm Giá & Khuyến Mãi (Voucher CRUD)"}
               {activeTab === "revenue" &&
                 "Quản Trị Đơn Hàng & Báo Cáo Doanh Thu"}
             </h1>
@@ -1106,16 +1514,8 @@ export default function AdminPortalPage() {
                 <p className="text-2xl font-extrabold text-[#9E5A2B] mt-1 font-headline">
                   {dashboardRevenue.toLocaleString("vi-VN")}đ
                 </p>
-                <p className="text-[11px] text-[#7A6A5E] mt-1">
-                  Từ{" "}
-                  {
-                    allOrders.filter((o) =>
-                      ["PAID", "PREPARING", "READY", "COMPLETED"].includes(
-                        o.status
-                      )
-                    ).length
-                  }{" "}
-                  đơn hàng hợp lệ
+                <p className="text-[11px] text-[#166534] font-bold mt-1">
+                  Lãi gộp: +{dashboardGrossProfit.toLocaleString("vi-VN")}đ (Giá vốn: {dashboardCogsSold.toLocaleString("vi-VN")}đ)
                 </p>
               </div>
               <div className="w-12 h-12 rounded-2xl bg-[#FEF3C7] text-[#B45309] flex items-center justify-center">
@@ -1173,9 +1573,8 @@ export default function AdminPortalPage() {
                   {totalIngredients} mặt hàng
                 </p>
                 <p className="text-[11px] text-[#7A6A5E] mt-1">
-                  {lowStockCount > 0
-                    ? `⚠️ ${lowStockCount} nguyên liệu cần nhập gấp`
-                    : "✅ 100% nguyên liệu đủ định mức"}
+                  Giá trị kho: <strong className="text-[#2C1E18]">{dashboardInventoryValue.toLocaleString("vi-VN")}đ</strong> •{" "}
+                  {lowStockCount > 0 ? `⚠️ ${lowStockCount} sắp hết` : "✅ Đủ định mức"}
                 </p>
               </div>
               <div
@@ -1223,6 +1622,80 @@ export default function AdminPortalPage() {
              =================================================================== */}
           {activeTab === "products" && (
             <div className="space-y-5">
+              {/* Global Size Pricing Bar (Đồng bộ trực tiếp với Modal Chọn Size của Khách Hàng) */}
+              <form
+                onSubmit={handleSaveGlobalSizePricing}
+                className="bg-gradient-to-r from-[#2C1810] to-[#43281C] text-white p-4 rounded-2xl shadow-md flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#9E5A2B] flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-[#FEB785]">
+                      straighten
+                    </span>
+                  </div>
+                  <div>
+                    <h2 className="font-headline text-sm font-extrabold text-white flex items-center gap-2">
+                      Cấu Hình Giá Phụ Thu Size Mặc Định Toàn Cửa Hàng (S / M / L)
+                      <span className="px-2 py-0.5 rounded-full bg-[#166534] text-[10px] font-bold">
+                        Đồng bộ Menu Khách
+                      </span>
+                    </h2>
+                    <p className="text-[11px] text-[#E6DDD5]">
+                      Áp dụng cho tất cả đồ uống (trừ khi món có cài đặt giá phụ thu Size M/L riêng bên dưới).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl border border-white/15">
+                    <span className="text-xs font-bold text-[#FEB785]">Size S (+đ):</span>
+                    <input
+                      type="number"
+                      step="1000"
+                      value={sizePricing.sizeS}
+                      onChange={(e) =>
+                        setSizePricing((prev) => ({ ...prev, sizeS: e.target.value }))
+                      }
+                      className="w-20 bg-white text-[#2C1E18] px-2 py-1 rounded-lg text-xs font-extrabold text-right"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl border border-white/15">
+                    <span className="text-xs font-bold text-[#FEB785]">Size M (+đ):</span>
+                    <input
+                      type="number"
+                      step="1000"
+                      value={sizePricing.sizeM}
+                      onChange={(e) =>
+                        setSizePricing((prev) => ({ ...prev, sizeM: e.target.value }))
+                      }
+                      className="w-24 bg-white text-[#2C1E18] px-2 py-1 rounded-lg text-xs font-extrabold text-right"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl border border-white/15">
+                    <span className="text-xs font-bold text-[#FEB785]">Size L (+đ):</span>
+                    <input
+                      type="number"
+                      step="1000"
+                      value={sizePricing.sizeL}
+                      onChange={(e) =>
+                        setSizePricing((prev) => ({ ...prev, sizeL: e.target.value }))
+                      }
+                      className="w-24 bg-white text-[#2C1E18] px-2 py-1 rounded-lg text-xs font-extrabold text-right"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSavingSizePricing}
+                    className="px-4 py-2 rounded-xl bg-[#FEB785] hover:bg-[#fca868] text-[#2C1810] text-xs font-extrabold transition-colors cursor-pointer shrink-0"
+                  >
+                    {isSavingSizePricing ? "Đang lưu..." : "Lưu Giá Size"}
+                  </button>
+                </div>
+              </form>
+
               {/* Filter & Action Toolbar */}
               <div className="bg-white p-4 rounded-2xl border border-[#E6DDD5] shadow-sm flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
@@ -1411,13 +1884,150 @@ export default function AdminPortalPage() {
                             </div>
                           </div>
 
-                          {/* Product Description */}
-                          <div className="px-4 pb-3">
-                            <p className="text-xs text-[#7A6A5E] line-clamp-2 min-h-[32px]">
-                              {prod.description ||
-                                "Chưa có mô tả chi tiết cho sản phẩm này."}
-                            </p>
+                          {/* COGS (Giá Vốn) & Gross Profit Margin Badge */}
+                          <div className="mx-4 mb-2.5 px-3 py-2 rounded-xl bg-[#F3ECE4]/70 border border-[#E6DDD5] flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                            <div>
+                              <span className="text-[#7A6A5E] font-medium">Giá vốn (COGS): </span>
+                              <strong className="text-[#2C1E18]">
+                                {(prod.cogsSizeS ?? 0).toLocaleString("vi-VN")}đ
+                              </strong>
+                              {prod.cogsSizeM ? (
+                                <span className="text-[#7A6A5E] ml-1">
+                                  (M: {prod.cogsSizeM.toLocaleString("vi-VN")}đ • L: {(prod.cogsSizeL ?? 0).toLocaleString("vi-VN")}đ)
+                                </span>
+                              ) : null}
+                            </div>
+                            <span
+                              className={`px-2 py-0.5 rounded-md font-bold ${
+                                (prod.marginPercentS ?? 70) >= 60
+                                  ? "bg-[#DCFCE7] text-[#166534]"
+                                  : (prod.marginPercentS ?? 70) >= 40
+                                  ? "bg-[#FEF3C7] text-[#B45309]"
+                                  : "bg-[#FEE2E2] text-[#991B1B]"
+                              }`}
+                            >
+                              Lãi gộp: +{(prod.grossProfitS ?? prod.basePrice).toLocaleString("vi-VN")}đ ({prod.marginPercentS ?? 100}%)
+                            </span>
                           </div>
+
+                          {/* Quick Inline Editor: Sửa nhanh Giá Bán, Phụ thu Size M/L & Mô Tả */}
+                          {(() => {
+                            const draft = inlineProductDrafts[prod.id] ?? {
+                              basePrice: String(prod.basePrice),
+                              description: prod.description || "",
+                              sizeUpchargeM:
+                                prod.sizeUpchargeM !== null && prod.sizeUpchargeM !== undefined
+                                  ? String(prod.sizeUpchargeM)
+                                  : "",
+                              sizeUpchargeL:
+                                prod.sizeUpchargeL !== null && prod.sizeUpchargeL !== undefined
+                                  ? String(prod.sizeUpchargeL)
+                                  : "",
+                            };
+                            const hasInlineChanges = Boolean(inlineProductDrafts[prod.id]);
+                            return (
+                              <div className="mx-4 mb-3 p-3 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] space-y-2">
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-[#7A6A5E] mb-0.5">
+                                      Giá gốc Size S (đ)
+                                    </label>
+                                    <input
+                                      type="number"
+                                      step="1000"
+                                      value={draft.basePrice}
+                                      onChange={(e) =>
+                                        setInlineProductDrafts((prev) => ({
+                                          ...prev,
+                                          [prod.id]: { ...draft, basePrice: e.target.value },
+                                        }))
+                                      }
+                                      className="w-full px-2 py-1 rounded-lg bg-white border border-[#E6DDD5] text-xs font-extrabold text-[#9E5A2B]"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-[#7A6A5E] mb-0.5">
+                                      +Size M riêng
+                                    </label>
+                                    <input
+                                      type="number"
+                                      step="1000"
+                                      placeholder={`Mặc định +${sizePricing.sizeM}`}
+                                      value={draft.sizeUpchargeM}
+                                      onChange={(e) =>
+                                        setInlineProductDrafts((prev) => ({
+                                          ...prev,
+                                          [prod.id]: { ...draft, sizeUpchargeM: e.target.value },
+                                        }))
+                                      }
+                                      className="w-full px-2 py-1 rounded-lg bg-white border border-[#E6DDD5] text-xs font-bold text-[#2C1E18]"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-[#7A6A5E] mb-0.5">
+                                      +Size L riêng
+                                    </label>
+                                    <input
+                                      type="number"
+                                      step="1000"
+                                      placeholder={`Mặc định +${sizePricing.sizeL}`}
+                                      value={draft.sizeUpchargeL}
+                                      onChange={(e) =>
+                                        setInlineProductDrafts((prev) => ({
+                                          ...prev,
+                                          [prod.id]: { ...draft, sizeUpchargeL: e.target.value },
+                                        }))
+                                      }
+                                      className="w-full px-2 py-1 rounded-lg bg-white border border-[#E6DDD5] text-xs font-bold text-[#2C1E18]"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <label className="block text-[10px] font-bold text-[#7A6A5E] mb-0.5">
+                                    Mô tả sản phẩm (Hiển thị trên Menu & Modal)
+                                  </label>
+                                  <textarea
+                                    rows={2}
+                                    value={draft.description}
+                                    onChange={(e) =>
+                                      setInlineProductDrafts((prev) => ({
+                                        ...prev,
+                                        [prod.id]: { ...draft, description: e.target.value },
+                                      }))
+                                    }
+                                    placeholder="Nhập mô tả hương vị sản phẩm..."
+                                    className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-[#E6DDD5] text-xs text-[#2C1E18] focus:outline-none focus:border-[#9E5A2B]"
+                                  />
+                                </div>
+
+                                {hasInlineChanges && (
+                                  <div className="flex items-center justify-end gap-2 pt-1">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setInlineProductDrafts((prev) => {
+                                          const next = { ...prev };
+                                          delete next[prod.id];
+                                          return next;
+                                        })
+                                      }
+                                      className="px-2.5 py-1 rounded-lg bg-white border border-[#E6DDD5] text-[11px] font-bold text-[#7A6A5E] cursor-pointer"
+                                    >
+                                      Hoàn tác
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveInlineProduct(prod)}
+                                      className="px-3 py-1 rounded-lg bg-[#166534] hover:bg-emerald-800 text-white text-[11px] font-bold cursor-pointer shadow-xs"
+                                    >
+                                      💾 Lưu nhanh giá & mô tả
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           {/* Quick Toggle Switches (Ẩn/Hiện & Báo Hết Hàng Thủ Công) */}
                           <div className="mx-4 mb-3 p-3 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] grid grid-cols-2 gap-2">
@@ -1693,6 +2303,73 @@ export default function AdminPortalPage() {
                                 }}
                               />
                             </div>
+
+                            {/* Giá Nhập Nguyên Liệu (Quick Inline Edit) */}
+                            {(() => {
+                              const isBulk = ing.unit === "g" || ing.unit === "ml";
+                              const defaultDisplayCost = isBulk
+                                ? Math.round(Number(ing.costPerUnit ?? 0) * 1000)
+                                : Math.round(Number(ing.costPerUnit ?? 0));
+                              const draftCost = inlineIngCostDrafts[ing.id];
+                              const isCostChanged =
+                                draftCost !== undefined &&
+                                Number(draftCost) !== defaultDisplayCost;
+                              const unitLabel = isBulk
+                                ? ing.unit === "g"
+                                  ? "1 Kg (1000g)"
+                                  : "1 Lít (1000ml)"
+                                : `1 ${ing.unit}`;
+
+                              return (
+                                <div className="mt-3 p-2.5 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] flex items-center justify-between gap-2">
+                                  <div className="text-[11px]">
+                                    <span className="text-[#7A6A5E] font-semibold">
+                                      Giá nhập / {unitLabel}:
+                                    </span>
+                                    <p className="text-[10px] text-[#7A6A5E]">
+                                      Giá trị tồn:{" "}
+                                      <strong className="text-[#2C1E18]">
+                                        {Math.round(
+                                          ing.stock * Number(ing.costPerUnit ?? 0)
+                                        ).toLocaleString("vi-VN")}
+                                        đ
+                                      </strong>
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="500"
+                                      value={
+                                        draftCost !== undefined
+                                          ? draftCost
+                                          : String(defaultDisplayCost)
+                                      }
+                                      onChange={(e) =>
+                                        setInlineIngCostDrafts((prev) => ({
+                                          ...prev,
+                                          [ing.id]: e.target.value,
+                                        }))
+                                      }
+                                      className="w-24 px-2 py-1 rounded-lg bg-white border border-[#E6DDD5] text-xs font-extrabold text-[#9E5A2B] text-right"
+                                    />
+                                    <span className="text-[10px] font-bold text-[#7A6A5E]">
+                                      đ
+                                    </span>
+                                    {isCostChanged && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSaveInlineIngCost(ing)}
+                                        className="px-2 py-1 rounded-lg bg-[#166534] text-white text-[10px] font-bold cursor-pointer"
+                                      >
+                                        Lưu
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
 
@@ -1724,6 +2401,97 @@ export default function AdminPortalPage() {
                   })}
                 </div>
               )}
+
+              {/* NHẬT KÝ NHẬP / XUẤT KHO & LỊCH SỬ GIÁ NHẬP (INVENTORY AUDIT LOG) */}
+              <div className="bg-white rounded-2xl border border-[#E6DDD5] shadow-sm overflow-hidden">
+                <div className="p-5 border-b border-[#E6DDD5] flex items-center justify-between">
+                  <div>
+                    <h3 className="font-headline text-base font-extrabold text-[#2C1E18]">
+                      📋 Nhật Ký Nhập Hàng & Kiểm Kê Kho (Inventory Audit Logs)
+                    </h3>
+                    <p className="text-xs text-[#7A6A5E]">
+                      Lưu vết tự động mọi phiếu nhập kho, điều chỉnh tồn kho, đơn giá nhập và tổng chi phí lô hàng
+                    </p>
+                  </div>
+                  <span className="px-3 py-1 rounded-full bg-[#F3ECE4] text-xs font-bold text-[#9E5A2B]">
+                    {inventoryLogs.length} bản ghi gần nhất
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-[#FAF6F0] text-[11px] font-bold uppercase tracking-wider text-[#7A6A5E] border-b border-[#E6DDD5]">
+                        <th className="py-3 px-4">Thời Gian</th>
+                        <th className="py-3 px-4">Nguyên Vật Liệu</th>
+                        <th className="py-3 px-4">Loại Phiếu</th>
+                        <th className="py-3 px-4">Biến Động</th>
+                        <th className="py-3 px-4">Tồn Trước → Sau</th>
+                        <th className="py-3 px-4">Giá Vốn / ĐV</th>
+                        <th className="py-3 px-4">Thành Tiền Lô</th>
+                        <th className="py-3 px-4">Ghi Chú</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E6DDD5] text-xs">
+                      {inventoryLogs.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="py-6 text-center text-[#7A6A5E]">
+                            Chưa có nhật ký nhập/xuất kho nào. Hãy thử bấm &ldquo;Nhập hàng&rdquo; hoặc &ldquo;Kiểm kê&rdquo; trên thẻ nguyên liệu!
+                          </td>
+                        </tr>
+                      ) : (
+                        inventoryLogs.map((log) => (
+                          <tr key={log.id} className="hover:bg-[#FAF6F0]/60">
+                            <td className="py-3 px-4 text-[#7A6A5E] whitespace-nowrap">
+                              {new Date(log.createdAt).toLocaleString("vi-VN")}
+                            </td>
+                            <td className="py-3 px-4 font-bold text-[#2C1E18]">
+                              {log.ingredient?.name || `#${log.ingredientId}`}
+                            </td>
+                            <td className="py-3 px-4">
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  log.action === "RESTOCK"
+                                    ? "bg-[#DCFCE7] text-[#166534]"
+                                    : "bg-[#FEF3C7] text-[#B45309]"
+                                }`}
+                              >
+                                {log.action === "RESTOCK" ? "NHẬP KHO (+)" : "KIỂM KÊ (=)"}
+                              </span>
+                            </td>
+                            <td
+                              className={`py-3 px-4 font-extrabold ${
+                                log.changeAmount >= 0 ? "text-[#166534]" : "text-[#DC2626]"
+                              }`}
+                            >
+                              {log.changeAmount >= 0 ? "+" : ""}
+                              {log.changeAmount.toLocaleString("vi-VN")}{" "}
+                              {log.ingredient?.unit || ""}
+                            </td>
+                            <td className="py-3 px-4 text-[#7A6A5E]">
+                              {log.previousStock.toLocaleString("vi-VN")} →{" "}
+                              <strong className="text-[#2C1E18]">
+                                {log.newStock.toLocaleString("vi-VN")} {log.ingredient?.unit || ""}
+                              </strong>
+                            </td>
+                            <td className="py-3 px-4 font-semibold text-[#9E5A2B]">
+                              {Number(log.unitCost || 0).toLocaleString("vi-VN")}đ/{log.ingredient?.unit || "đv"}
+                            </td>
+                            <td className="py-3 px-4 font-bold text-[#2C1E18]">
+                              {log.totalCost > 0
+                                ? `${Math.round(log.totalCost).toLocaleString("vi-VN")}đ`
+                                : "—"}
+                            </td>
+                            <td className="py-3 px-4 text-[#7A6A5E]">
+                              {log.note || "—"}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1942,61 +2710,181 @@ export default function AdminPortalPage() {
                 </div>
               </div>
 
-              {/* Topping BOM Table */}
+              {/* Topping Full CRUD & Pricing Table */}
               <div className="bg-white rounded-2xl border border-[#E6DDD5] shadow-sm p-5">
-                <h3 className="font-headline text-base font-extrabold text-[#2C1E18] mb-1">
-                  Định Lượng Nguyên Vật Liệu Cho Topping Thêm Kèm
-                </h3>
-                <p className="text-xs text-[#7A6A5E] mb-3">
-                  Bạn có thể điều chỉnh trực tiếp số lượng nguyên liệu tiêu hao
-                  mỗi khi khách chọn thêm Topping.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                  <div>
+                    <h3 className="font-headline text-base font-extrabold text-[#2C1E18]">
+                      🍮 Quản Lý Giá Bán Topping, Mô Tả & Định Lượng Trừ Kho (Topping CRUD)
+                    </h3>
+                    <p className="text-xs text-[#7A6A5E]">
+                      Chỉnh sửa trực tiếp giá bán Topping (+VNĐ), tên hiển thị, mô tả phụ, ẩn/hiện trên Menu khách hàng và định lượng trừ kho.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewTopIngId(ingredients[0]?.id ?? 0);
+                      setIsToppingModalOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-[#2C1810] hover:bg-[#3F2E26] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">
+                      add_circle
+                    </span>
+                    Thêm Topping mới
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {toppingRecipes.map((tr) => {
-                    const draft = editingToppingAmounts[tr.id];
+                    const draftAmt = editingToppingAmounts[tr.id];
+                    const draftPrice = editingToppingPrices[tr.id];
+                    const draftName = editingToppingNames[tr.id];
+                    const draftSubtext = editingToppingSubtexts[tr.id];
                     const isChanged =
-                      draft !== undefined && Number(draft) !== tr.amount;
+                      draftAmt !== undefined ||
+                      draftPrice !== undefined ||
+                      draftName !== undefined ||
+                      draftSubtext !== undefined;
+                    const isActive = tr.isActive !== false;
+                    const toppingCogs = Math.round(
+                      tr.amount * Number(tr.ingredient?.costPerUnit ?? 0)
+                    );
+
                     return (
                       <div
                         key={tr.id}
-                        className="p-3.5 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] flex flex-col justify-between gap-2"
+                        className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
+                          isActive
+                            ? "bg-[#FAF6F0] border-[#E6DDD5]"
+                            : "bg-gray-100/80 border-dashed border-gray-300 opacity-75"
+                        }`}
                       >
-                        <div>
-                          <p className="text-xs font-bold text-[#9E5A2B] uppercase">
-                            {tr.toppingName}
-                          </p>
-                          <p className="text-sm font-bold text-[#2C1E18] mt-1">
-                            {tr.ingredient?.name}
-                          </p>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-0.5 rounded bg-[#2C1810] text-white text-[10px] font-mono font-bold">
+                                #{tr.toppingCode || tr.toppingId}
+                              </span>
+                              <span className="text-[11px] text-[#7A6A5E]">
+                                Nguyên liệu gốc: <strong>{tr.ingredient?.name}</strong>
+                              </span>
+                            </div>
+                            <input
+                              type="text"
+                              value={
+                                draftName !== undefined ? draftName : tr.toppingName
+                              }
+                              onChange={(e) =>
+                                setEditingToppingNames((prev) => ({
+                                  ...prev,
+                                  [tr.id]: e.target.value,
+                                }))
+                              }
+                              className="w-full px-2.5 py-1 rounded-lg bg-white border border-[#E6DDD5] text-xs font-extrabold text-[#2C1E18]"
+                              placeholder="Tên Topping"
+                            />
+                            <input
+                              type="text"
+                              value={
+                                draftSubtext !== undefined
+                                  ? draftSubtext
+                                  : tr.subtext || ""
+                              }
+                              onChange={(e) =>
+                                setEditingToppingSubtexts((prev) => ({
+                                  ...prev,
+                                  [tr.id]: e.target.value,
+                                }))
+                              }
+                              className="w-full px-2.5 py-1 rounded-lg bg-white border border-[#E6DDD5] text-[11px] text-[#7A6A5E]"
+                              placeholder="Mô tả phụ (VD: Giòn dai sần sật...)"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateToppingItem(tr, !isActive)}
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer ${
+                                isActive
+                                  ? "bg-[#DCFCE7] text-[#166534]"
+                                  : "bg-gray-200 text-gray-700"
+                              }`}
+                            >
+                              {isActive ? "Đang hiện" : "Đang ẩn"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTopping(tr)}
+                              className="p-1 rounded-lg bg-red-50 hover:bg-red-100 text-[#991B1B] cursor-pointer"
+                              title="Xóa Topping"
+                            >
+                              <span className="material-symbols-outlined text-[15px]">
+                                delete
+                              </span>
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1.5 mt-1">
-                          <span className="text-xs text-[#7A6A5E]">
-                            Tiêu hao:
-                          </span>
-                          <input
-                            type="number"
-                            min="0.1"
-                            step="any"
-                            value={
-                              draft !== undefined ? draft : String(tr.amount)
-                            }
-                            onChange={(ev) =>
-                              setEditingToppingAmounts((prev) => ({
-                                ...prev,
-                                [tr.id]: ev.target.value,
-                              }))
-                            }
-                            className="w-20 px-2 py-1 rounded-lg bg-white border border-[#E6DDD5] text-xs font-extrabold text-[#9E5A2B]"
-                          />
-                          <span className="text-xs font-bold text-[#7A6A5E]">
-                            {tr.ingredient?.unit}
+
+                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#E6DDD5]">
+                          <div>
+                            <label className="block text-[10px] font-bold text-[#7A6A5E] mb-0.5">
+                              Giá bán cộng thêm (+VNĐ)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1000"
+                              value={
+                                draftPrice !== undefined
+                                  ? draftPrice
+                                  : String(tr.price ?? 8000)
+                              }
+                              onChange={(ev) =>
+                                setEditingToppingPrices((prev) => ({
+                                  ...prev,
+                                  [tr.id]: ev.target.value,
+                                }))
+                              }
+                              className="w-full px-2.5 py-1 rounded-lg bg-white border border-[#E6DDD5] text-xs font-extrabold text-[#9E5A2B]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-[#7A6A5E] mb-0.5">
+                              Định lượng trừ kho ({tr.ingredient?.unit})
+                            </label>
+                            <input
+                              type="number"
+                              min="0.1"
+                              step="any"
+                              value={
+                                draftAmt !== undefined ? draftAmt : String(tr.amount)
+                              }
+                              onChange={(ev) =>
+                                setEditingToppingAmounts((prev) => ({
+                                  ...prev,
+                                  [tr.id]: ev.target.value,
+                                }))
+                              }
+                              className="w-full px-2.5 py-1 rounded-lg bg-white border border-[#E6DDD5] text-xs font-extrabold text-[#2C1E18]"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-[#7A6A5E]">
+                          <span>
+                            Giá vốn 1 phần Topping: <strong>{toppingCogs.toLocaleString("vi-VN")}đ</strong>
                           </span>
                           {isChanged && (
                             <button
-                              onClick={() => handleUpdateToppingAmount(tr)}
-                              className="px-2.5 py-1 rounded-lg bg-[#166534] text-white text-xs font-bold cursor-pointer"
+                              type="button"
+                              onClick={() => handleUpdateToppingItem(tr)}
+                              className="px-3 py-1 rounded-lg bg-[#166534] text-white text-xs font-bold cursor-pointer shadow-xs"
                             >
-                              Lưu
+                              💾 Lưu Topping
                             </button>
                           )}
                         </div>
@@ -2004,6 +2892,213 @@ export default function AdminPortalPage() {
                     );
                   })}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* ===================================================================
+              TAB 4: VOUCHERS / DISCOUNT CODES MANAGEMENT
+             =================================================================== */}
+          {activeTab === "vouchers" && (
+            <div className="space-y-6">
+              {/* Create Voucher Form */}
+              <form
+                onSubmit={handleCreateVoucher}
+                className="bg-white rounded-2xl border border-[#E6DDD5] shadow-sm p-5 space-y-4"
+              >
+                <div>
+                  <h2 className="font-headline text-base font-extrabold text-[#2C1E18]">
+                    🎟️ Tạo Mã Giảm Giá / Voucher Khuyến Mãi Mới
+                  </h2>
+                  <p className="text-xs text-[#7A6A5E]">
+                    Mã giảm giá sau khi bật sẽ hiển thị ngay lập tức ở trang Giỏ hàng của khách và được kiểm tra tự động khi thanh toán.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+                  <div>
+                    <label className="block text-xs font-bold text-[#2C1E18] mb-1">
+                      Mã Code *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={newVoucherCode}
+                      onChange={(e) => setNewVoucherCode(e.target.value.toUpperCase())}
+                      placeholder="VD: HE2026"
+                      className="w-full px-3 py-2 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] text-xs font-mono font-bold uppercase"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#2C1E18] mb-1">
+                      Mức giảm (%) *
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      required
+                      value={newVoucherPercent}
+                      onChange={(e) => setNewVoucherPercent(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] text-xs font-extrabold text-[#9E5A2B]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#2C1E18] mb-1">
+                      Đơn tối thiểu (VNĐ)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="5000"
+                      value={newVoucherMinOrder}
+                      onChange={(e) => setNewVoucherMinOrder(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] text-xs font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#2C1E18] mb-1">
+                      Mô tả chương trình
+                    </label>
+                    <input
+                      type="text"
+                      value={newVoucherDesc}
+                      onChange={(e) => setNewVoucherDesc(e.target.value)}
+                      placeholder="VD: Ưu đãi trà chiều -20%"
+                      className="w-full px-3 py-2 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] text-xs"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSavingVoucher}
+                    className="px-4 py-2.5 rounded-xl bg-[#2C1810] hover:bg-[#3F2E26] text-white text-xs font-bold cursor-pointer"
+                  >
+                    {isSavingVoucher ? "Đang lưu..." : "+ Tạo Mã Giảm Giá"}
+                  </button>
+                </div>
+              </form>
+
+              {/* Vouchers List */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {vouchers.map((v) => {
+                  const draft = editingVoucherDrafts[v.id] ?? {
+                    discountPercent: String(v.discountPercent),
+                    minOrderAmount: String(v.minOrderAmount || 0),
+                    description: v.description || "",
+                  };
+                  const hasChanged = Boolean(editingVoucherDrafts[v.id]);
+                  return (
+                    <div
+                      key={v.id}
+                      className={`bg-white rounded-2xl p-5 border shadow-sm flex flex-col justify-between gap-3 ${
+                        v.isActive
+                          ? "border-[#E6DDD5]"
+                          : "border-dashed border-gray-300 opacity-75"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="px-2.5 py-1 rounded-lg bg-[#FEF3C7] text-[#9E5A2B] font-mono text-sm font-extrabold">
+                            {v.code}
+                          </span>
+                          <p className="text-[11px] text-[#7A6A5E] mt-1">
+                            Đã sử dụng: <strong>{v.usageCount ?? 0} lượt</strong>
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateVoucher(v, !v.isActive)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer ${
+                              v.isActive
+                                ? "bg-[#DCFCE7] text-[#166534]"
+                                : "bg-gray-200 text-gray-700"
+                            }`}
+                          >
+                            {v.isActive ? "Đang hoạt động" : "Tạm ngưng"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteVoucher(v)}
+                            className="p-1 rounded-lg bg-red-50 hover:bg-red-100 text-[#991B1B] cursor-pointer"
+                            title="Xóa mã giảm giá"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">
+                              delete
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-[#7A6A5E]">
+                              Giảm (%)
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              max="100"
+                              value={draft.discountPercent}
+                              onChange={(e) =>
+                                setEditingVoucherDrafts((prev) => ({
+                                  ...prev,
+                                  [v.id]: { ...draft, discountPercent: e.target.value },
+                                }))
+                              }
+                              className="w-full px-2.5 py-1 rounded-lg bg-[#FAF6F0] border border-[#E6DDD5] text-xs font-extrabold text-[#9E5A2B]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-[#7A6A5E]">
+                              Đơn tối thiểu (đ)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="5000"
+                              value={draft.minOrderAmount}
+                              onChange={(e) =>
+                                setEditingVoucherDrafts((prev) => ({
+                                  ...prev,
+                                  [v.id]: { ...draft, minOrderAmount: e.target.value },
+                                }))
+                              }
+                              className="w-full px-2.5 py-1 rounded-lg bg-[#FAF6F0] border border-[#E6DDD5] text-xs font-bold"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-[#7A6A5E]">
+                            Mô tả ưu đãi
+                          </label>
+                          <input
+                            type="text"
+                            value={draft.description}
+                            onChange={(e) =>
+                              setEditingVoucherDrafts((prev) => ({
+                                ...prev,
+                                [v.id]: { ...draft, description: e.target.value },
+                              }))
+                            }
+                            className="w-full px-2.5 py-1 rounded-lg bg-[#FAF6F0] border border-[#E6DDD5] text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      {hasChanged && (
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateVoucher(v)}
+                          className="w-full py-1.5 rounded-xl bg-[#166534] text-white text-xs font-bold cursor-pointer"
+                        >
+                          💾 Lưu thay đổi Voucher
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -2419,6 +3514,37 @@ export default function AdminPortalPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-[#2C1E18] mb-1.5">
+                    Phụ thu Size M riêng (+VNĐ, để trống = dùng mặc định +{sizePricing.sizeM}đ)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={prodSizeUpchargeM}
+                    onChange={(e) => setProdSizeUpchargeM(e.target.value)}
+                    placeholder={`Mặc định toàn quán: +${sizePricing.sizeM}đ`}
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] text-xs font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#2C1E18] mb-1.5">
+                    Phụ thu Size L riêng (+VNĐ, để trống = dùng mặc định +{sizePricing.sizeL}đ)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={prodSizeUpchargeL}
+                    onChange={(e) => setProdSizeUpchargeL(e.target.value)}
+                    placeholder={`Mặc định toàn quán: +${sizePricing.sizeL}đ`}
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] text-xs font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#2C1E18] mb-1.5">
                     Danh mục hiển thị trên Menu
                   </label>
                   <select
@@ -2683,6 +3809,40 @@ export default function AdminPortalPage() {
               </div>
 
               <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-[#2C1E18]">
+                    Đơn giá nhập ({restockCostMode === "bulk" && (selectedIngredient.unit === "g" || selectedIngredient.unit === "ml")
+                      ? selectedIngredient.unit === "g" ? "VNĐ / 1 Kg" : "VNĐ / 1 Lít"
+                      : `VNĐ / 1 ${selectedIngredient.unit}`})
+                  </label>
+                  {(selectedIngredient.unit === "g" || selectedIngredient.unit === "ml") && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextMode = restockCostMode === "bulk" ? "unit" : "bulk";
+                        setRestockCostMode(nextMode);
+                        const cur = Number(restockCostInput) || 0;
+                        setRestockCostInput(
+                          String(nextMode === "bulk" ? Math.round(cur * 1000) : cur / 1000)
+                        );
+                      }}
+                      className="text-[11px] font-bold text-[#9E5A2B] underline cursor-pointer"
+                    >
+                      Đổi sang nhập theo {restockCostMode === "bulk" ? `1 ${selectedIngredient.unit}` : selectedIngredient.unit === "g" ? "1 Kg" : "1 Lít"}
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={restockCostInput}
+                  onChange={(e) => setRestockCostInput(e.target.value)}
+                  className="w-full px-4 py-2 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] text-sm font-extrabold text-[#9E5A2B]"
+                />
+              </div>
+
+              <div>
                 <label className="block text-xs font-bold text-[#2C1E18] mb-1.5">
                   Ghi chú vận hành
                 </label>
@@ -2817,6 +3977,71 @@ export default function AdminPortalPage() {
                     onChange={(e) => setIngMinThreshold(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] text-sm font-bold text-[#B45309]"
                   />
+                </div>
+              </div>
+
+              {/* 2-Way Cost Per Unit Input (Theo 1g/ml VÀ theo 1 Kg/Lít) */}
+              <div className="p-3 rounded-2xl bg-[#FAF6F0] border border-[#E6DDD5] space-y-2">
+                <p className="text-xs font-bold text-[#2C1E18]">
+                  💰 Giá nhập nguyên vật liệu (Tự động quy đổi 2 chiều để tính Giá vốn COGS)
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#7A6A5E] mb-1">
+                      Giá trên 1 {ingUnit} (VNĐ)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={ingCostPerUnit}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setIngCostPerUnit(v);
+                        const num = Number(v);
+                        if (!isNaN(num)) {
+                          setIngCostBulk(
+                            String(
+                              ingUnit === "g" || ingUnit === "ml"
+                                ? Math.round(num * 1000)
+                                : num
+                            )
+                          );
+                        }
+                      }}
+                      className="w-full px-3 py-1.5 rounded-xl bg-white border border-[#E6DDD5] text-xs font-extrabold text-[#9E5A2B]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#7A6A5E] mb-1">
+                      {ingUnit === "g"
+                        ? "Giá trên 1 Kg = 1000g (VNĐ)"
+                        : ingUnit === "ml"
+                        ? "Giá trên 1 Lít = 1000ml (VNĐ)"
+                        : `Giá trên 1 ${ingUnit} (VNĐ)`}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={ingCostBulk}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setIngCostBulk(v);
+                        const num = Number(v);
+                        if (!isNaN(num)) {
+                          setIngCostPerUnit(
+                            String(
+                              ingUnit === "g" || ingUnit === "ml"
+                                ? num / 1000
+                                : num
+                            )
+                          );
+                        }
+                      }}
+                      className="w-full px-3 py-1.5 rounded-xl bg-white border border-[#E6DDD5] text-xs font-extrabold text-[#166534]"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -2996,6 +4221,143 @@ export default function AdminPortalPage() {
                 {isDeleting ? "Đang xóa..." : "Xác nhận xóa vĩnh viễn"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          MODAL 7: CREATE NEW TOPPING MODAL
+         ===================================================================== */}
+      {isToppingModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-[#E6DDD5]">
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#E6DDD5]">
+              <div>
+                <span className="text-[10px] font-bold uppercase text-[#9E5A2B]">
+                  Thêm Topping Mới
+                </span>
+                <h3 className="font-headline text-lg font-extrabold text-[#2C1E18]">
+                  Tạo Topping & Thiết Lập Giá Bán
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsToppingModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-[#F3ECE4] flex items-center justify-center text-[#7A6A5E]"
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  close
+                </span>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTopping} className="mt-4 space-y-3.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-[#2C1E18] mb-1">
+                    Mã Topping *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newTopCode}
+                    onChange={(e) => setNewTopCode(e.target.value)}
+                    placeholder="VD: pudding"
+                    className="w-full px-3 py-2 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] text-xs font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#2C1E18] mb-1">
+                    Giá bán (+VNĐ) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    required
+                    value={newTopPrice}
+                    onChange={(e) => setNewTopPrice(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] text-xs font-extrabold text-[#9E5A2B]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#2C1E18] mb-1">
+                  Tên hiển thị trên Menu khách *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newTopName}
+                  onChange={(e) => setNewTopName(e.target.value)}
+                  placeholder="VD: Bánh Flan Trứng Tươi"
+                  className="w-full px-3.5 py-2 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] text-sm font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#2C1E18] mb-1">
+                  Mô tả ngắn (Subtext)
+                </label>
+                <input
+                  type="text"
+                  value={newTopSubtext}
+                  onChange={(e) => setNewTopSubtext(e.target.value)}
+                  placeholder="VD: Mềm mịn béo thơm hương caramel"
+                  className="w-full px-3.5 py-2 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-[#2C1E18] mb-1">
+                    Nguyên liệu trừ kho *
+                  </label>
+                  <select
+                    value={newTopIngId}
+                    onChange={(e) => setNewTopIngId(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] text-xs font-bold"
+                  >
+                    {ingredients.map((ing) => (
+                      <option key={ing.id} value={ing.id}>
+                        {ing.name} ({ing.unit})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#2C1E18] mb-1">
+                    Định lượng tiêu hao *
+                  </label>
+                  <input
+                    type="number"
+                    min="0.1"
+                    step="any"
+                    required
+                    value={newTopAmount}
+                    onChange={(e) => setNewTopAmount(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] text-xs font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E6DDD5]">
+                <button
+                  type="button"
+                  onClick={() => setIsToppingModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-[#F3ECE4] text-xs font-bold text-[#7A6A5E]"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingTopping}
+                  className="px-5 py-2 rounded-xl bg-[#9E5A2B] text-white text-xs font-bold cursor-pointer"
+                >
+                  {isSavingTopping ? "Đang lưu..." : "Tạo Topping"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -1,17 +1,27 @@
-# KẾ HOẠCH NÂNG CẤP TOÀN DIỆN CỔNG QUẢN TRỊ ADMIN (`/admin`) — FULL BUSINESS CRUD & OPERATIONS
+# KẾ HOẠCH NÂNG CẤP TOÀN DIỆN CỔNG QUẢN TRỊ ADMIN (`/admin`) — FULL BUSINESS CRUD, PRICING, COGS & VOUCHERS
 
 > **Dự án:** BrewLite — Hệ thống Đặt Nước & Thanh Toán Không Tiền Mặt  
-> **Phạm vi:** Nâng cấp toàn diện nghiệp vụ thực tế cho Quản trị viên (`Role.ADMIN`) bao gồm:
-> 1. **Quản lý Thực đơn / Sản phẩm (Menu CRUD):** Xem, Thêm món mới, Chỉnh sửa (tên, mô tả, giá bán, danh mục, nhãn nổi bật, hình ảnh 3 chế độ), Ẩn/Hiện món (`isActive`), Báo hết hàng thủ công (`isSoldOutManual`), và Xóa món kèm hộp thoại cảnh báo liên kết.
-> 2. **Quản lý Kho Nguyên Vật Liệu (Ingredient Full CRUD):** Thêm nguyên vật liệu mới, Sửa thông tin (tên, mã code, đơn vị tính, ngưỡng cảnh báo tối thiểu `minThreshold`, tồn kho `stock`), Nhập kho (`restock`), Kiểm kê (`set stock`), và Xóa nguyên vật liệu kèm cảnh báo số công thức ảnh hưởng.
-> 3. **Quản lý Công thức Định lượng BOM (Recipe & Topping BOM Editor):** Điều chỉnh trực tiếp định lượng (`g / ml / phần`) cho từng Size (`S, M, L, ALL`) của từng sản phẩm, thêm/xóa nguyên liệu khỏi công thức món, chỉnh sửa định lượng Topping, và nút nhảy nhanh **"Cấu hình công thức"** từ thẻ sản phẩm sang trình thiết lập BOM.
-> 4. **Quản lý Đơn hàng & Doanh thu nâng cao (Orders & Best-Sellers Analytics):** Xem chi tiết đơn hàng (món, size, topping, ghi chú, khách hàng), tìm kiếm & lọc đơn theo trạng thái, cho phép Admin chuyển trạng thái đơn (`PAID -> PREPARING -> READY -> COMPLETED`) hoặc **Hủy đơn (`CANCELLED`) kèm tự động hoàn trả nguyên vật liệu vào kho (Rollback Stock)**, và bảng xếp hạng **Top món bán chạy nhất (Best-sellers)**.
+> **Phạm vi nâng cấp toàn diện nghiệp vụ thực tế cho Quản trị viên (`Role.ADMIN`):**
+> 1. **Quản lý Thực đơn, Giá bán, Mô tả & Giá Size (Menu & Size Pricing CRUD):**
+>    - **Sửa nhanh trực tiếp (Quick Inline Edit)** ngay trên thẻ sản phẩm: Sửa nhanh Giá bán (`basePrice`), Giá phụ thu Size M / Size L riêng của món, và Mô tả hương vị (`description`) chỉ với 1 cú nhấp chuột.
+>    - **Cấu hình Giá Size chuẩn toàn quán (`StoreSetting`):** Cho phép Admin điều chỉnh mức phụ thu mặc định của `Size S (+0đ)`, `Size M (+5.000đ)`, `Size L (+10.000đ)` áp dụng chung toàn quán, đồng thời cho phép ghi đè mức phụ thu Size M / L riêng trên từng món đặc biệt. Đồng bộ 100% sang `ProductDetailModal` bên trang khách hàng (`/menu`).
+>    - Đầy đủ chức năng Xem, Thêm món mới, Sửa toàn diện (3 chế độ chọn ảnh), Ẩn/Hiện (`isActive`), Báo hết hàng thủ công (`isSoldOutManual`), và Xóa món kèm cảnh báo liên kết.
+> 2. **Quản lý Topping & Giá Topping (Topping Full CRUD & Sync):**
+>    - Cho phép Admin **Sửa giá bán Topping (`price`)**, Tên Topping (`toppingName`), Mô tả ngắn (`subtext`), Định lượng nguyên liệu tiêu hao (`amount`), Bật/Tắt hiển thị (`isActive`), **Thêm Topping mới** và **Xóa Topping**.
+>    - Đồng bộ trực tiếp danh sách Topping đang mở bán và giá Topping mới nhất sang cửa sổ chọn món `ProductDetailModal` của khách hàng.
+> 3. **Quản lý Giá nhập Nguyên vật liệu, Giá vốn (COGS), Lợi nhuận gộp & Nhật ký Nhập kho (`InventoryLog`):**
+>    - Bổ sung **Đơn giá nhập (`costPerUnit`)** cho từng nguyên vật liệu trong kho. Hỗ trợ nhập 2 chiều thông minh: nhập theo **1 đơn vị (`g / ml / chiếc`)** hoặc nhập theo **1 Kg / 1 Lít (`1.000g / 1.000ml`)** tự động quy đổi qua lại.
+>    - Tự động tính **Giá vốn (COGS)** của từng món theo công thức BOM ($\sum \text{Định lượng} \times \text{Đơn giá nhập}$) và hiển thị **Lợi nhuận gộp (`Giá bán - Giá vốn`)** cùng **Tỷ suất lợi nhuận (`Margin %`)** trên từng món và trên tổng doanh thu.
+>    - Lưu **Nhật ký Nhập/Xuất Kho (`InventoryLog`)**: Ghi nhận mỗi lần Admin nhập hàng (`RESTOCK`) hoặc kiểm kê (`ADJUST`) tốn bao nhiêu chi phí (`totalCost`), số lượng trước/sau, ghi chú và người thực hiện.
+> 4. **Quản lý Mã Giảm Giá / Khuyến Mãi (`DiscountCode` / Voucher CRUD):**
+>    - Quản lý danh sách mã giảm giá trong Database (`code`, `description`, `discountPercent`, `minOrderAmount`, `isActive`).
+>    - Admin có thể tạo mã mới (VD: `SUMMER25`), chỉnh `%` giảm, đơn tối thiểu, bật/tắt hoặc xóa mã. Đồng bộ trực tiếp với luồng áp dụng mã giảm giá ở Giỏ hàng (`/cart`) và `POST /orders`.
+> 5. **Quản lý Đơn hàng & Doanh thu nâng cao:**
+>    - Xem chi tiết hóa đơn, lọc theo trạng thái, chuyển trạng thái pha chế hoặc **Hủy đơn kèm hoàn trả nguyên vật liệu tự động**, và bảng xếp hạng **Top Món Bán Chạy Nhất**.
 
 ---
 
-## 1. Kiến trúc Cơ sở dữ liệu (Prisma Schema & Migration)
-
-Cập nhật model `Product` trong [`backend/prisma/schema.prisma`](file:///d:/SWE/BrewLite_SWE/BrewLite_SWE/backend/prisma/schema.prisma):
+## 1. Kiến trúc Cơ sở dữ liệu mở rộng (`backend/prisma/schema.prisma`)
 
 ```prisma
 model Product {
@@ -20,102 +30,107 @@ model Product {
   description     String?
   imageUrl        String?
   basePrice       Float
-  category        String   @default("vietnamese") // vietnamese | espresso | tea | coldbrew | bakery
-  tag             String?  @default("Phổ biến")   // Nhãn hiển thị góc ảnh (Đặc sản, Signature, Mới...)
-  isActive        Boolean  @default(true)         // true: Hiện trên /menu | false: Ẩn khỏi /menu khách hàng
-  isSoldOutManual Boolean  @default(false)        // true: Admin chủ động bật "Tạm hết hàng"
+  sizeUpchargeM   Float?   // Nếu null sẽ dùng giá Size M chuẩn toàn quán (mặc định 5000)
+  sizeUpchargeL   Float?   // Nếu null sẽ dùng giá Size L chuẩn toàn quán (mặc định 10000)
+  category        String   @default("vietnamese")
+  tag             String?  @default("Phổ biến")
+  isActive        Boolean  @default(true)
+  isSoldOutManual Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @default(now()) @updatedAt
   recipes         Recipe[]
 }
+
+model Ingredient {
+  id             Int             @id @default(autoincrement())
+  code           String          @unique
+  name           String
+  unit           String
+  stock          Float           @default(0)
+  minThreshold   Float           @default(100)
+  costPerUnit    Float           @default(0) // Giá nhập trên 1 đơn vị (VNĐ / 1g, 1ml, 1 chiếc)
+  version        Int             @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  recipes        Recipe[]
+  toppingRecipes ToppingRecipe[]
+  logs           InventoryLog[]
+}
+
+model InventoryLog {
+  id             Int        @id @default(autoincrement())
+  ingredientId   Int
+  action         String     @default("RESTOCK") // RESTOCK | ADJUST
+  changeAmount   Float
+  previousStock  Float
+  newStock       Float
+  unitCost       Float      @default(0)
+  totalCost      Float      @default(0)
+  note           String?
+  performedBy    String?
+  createdAt      DateTime   @default(now())
+  ingredient     Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+}
+
+model ToppingRecipe {
+  id           Int        @id @default(autoincrement())
+  toppingCode  String
+  toppingName  String
+  subtext      String?    @default("Topping thơm ngon chuẩn vị")
+  price        Float      @default(8000)
+  isActive     Boolean    @default(true)
+  ingredientId Int
+  amount       Float
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([toppingCode, ingredientId])
+}
+
+model StoreSetting {
+  key         String   @id
+  value       String
+  description String?
+  updatedAt   DateTime @default(now()) @updatedAt
+}
+
+model DiscountCode {
+  id              Int      @id @default(autoincrement())
+  code            String   @unique
+  description     String?
+  discountPercent Float    // VD: 10 (10%), 15 (15%), 20 (20%)
+  minOrderAmount  Float    @default(0)
+  isActive        Boolean  @default(true)
+  usageCount      Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+}
 ```
 
-- **Tương thích ngược (Backward Compatibility):**
-  - Mọi sản phẩm hiện có trong DB mặc định nhận `isActive = true`, `isSoldOutManual = false`, `category` và `tag` được đồng bộ chuẩn theo tên món.
-  - Khi khách hàng gọi `GET /products`: chỉ trả về các món có `isActive = true`. Trường `isOutOfStock` trả về `true` nếu **nguyên liệu trong kho không đủ pha** HOẶC **`isSoldOutManual === true`**.
-  - Khi Admin gọi `GET /products?includeInactive=true` (hoặc `GET /products/admin/all`): trả về toàn bộ sản phẩm (cả món đang hiển thị và món đang ẩn) kèm thống kê số lượng công thức BOM và số lần đã được đặt trong `OrderItem`.
-
 ---
 
-## 2. Thiết kế API Backend (NestJS Controllers & Services)
+## 2. Thiết kế API Backend mở rộng
 
-### 2.1. Phân hệ Sản phẩm / Thực đơn (`ProductsController` & `ProductsService`)
-Bảo vệ bởi `@UseGuards(JwtAuthGuard, RolesGuard)` + `@Roles(Role.ADMIN)` cho toàn bộ tác vụ ghi:
+### 2.1. Phân hệ Sản phẩm & Cấu hình Giá Size (`ProductsController` / `InventoryController`)
+- `PATCH /products/:id`: Hỗ trợ cập nhật `basePrice`, `description`, `sizeUpchargeM`, `sizeUpchargeL`, `name`, `category`, `tag`, `imageUrl`, `isActive`, `isSoldOutManual`.
+- Tự động tính và trả về kèm mỗi sản phẩm:
+  - `cogsSizeS`, `cogsSizeM`, `cogsSizeL`: Giá vốn nguyên liệu theo từng size dựa trên `Recipe.amount * Ingredient.costPerUnit`.
+  - `grossProfitS`, `marginPercentS`: Lợi nhuận gộp và tỷ suất lợi nhuận `%` của món.
+- `GET /inventory/pricing-config` (Public): Trả về cấu hình Giá Size chuẩn toàn quán (`sizeS: 0`, `sizeM: 5000`, `sizeL: 10000`), danh sách **Topping đang hoạt động** kèm `price`, `subtext`, `toppingId`, `toppingName`, và danh sách **Mã giảm giá (`DiscountCode`) đang mở** để trang `/menu` (`ProductDetailModal`) và trang `/cart` của khách hàng đồng bộ theo thời gian thực!
+- `PATCH /inventory/size-pricing` (`ADMIN`): Cập nhật bảng Giá phụ thu Size chuẩn toàn quán (`sizeS`, `sizeM`, `sizeL`).
 
-| Phương thức & Endpoint | Quyền | Chức năng chi tiết |
-| :--- | :---: | :--- |
-| `GET /products` | Public | Trả về danh sách món đang mở bán (`isActive: true`) cho trang `/menu` của khách hàng. Hỗ trợ query `?includeInactive=true` cho Admin. |
-| `POST /products` | `ADMIN` | Tạo sản phẩm mới (`name`, `description`, `basePrice`, `imageUrl`, `category`, `tag`, `isActive`, `isSoldOutManual`). |
-| `PATCH /products/:id` | `ADMIN` | Cập nhật thông tin sản phẩm (tên, mô tả, giá gốc, ảnh, danh mục, nhãn, trạng thái `isActive`, `isSoldOutManual`). |
-| `PATCH /products/:id/visibility` | `ADMIN` | Bật/tắt nhanh công tắc **Ẩn/Hiện trên Menu (`isActive`)** hoặc **Báo hết hàng thủ công (`isSoldOutManual`)**. |
-| `DELETE /products/:id` | `ADMIN` | Xóa sản phẩm khỏi DB (`Cascade` xóa các dòng `Recipe` của món đó; giữ nguyên lịch sử `OrderItem` cũ để bảo toàn báo cáo doanh thu). |
+### 2.2. Phân hệ Topping Full CRUD (`InventoryController`)
+- `POST /inventory/topping-recipes` (`ADMIN`): Tạo mới hoặc thêm thành phần nguyên liệu cho Topping kèm `price`, `subtext`, `isActive`.
+- `PATCH /inventory/topping-recipes/:id` (`ADMIN`): Chỉnh sửa `price` (giá bán Topping), `toppingName`, `subtext`, `amount` (định lượng tiêu hao), `isActive` (ẩn/hiện Topping).
+- `DELETE /inventory/topping-recipes/:id` (`ADMIN`): Xóa Topping.
 
-### 2.2. Phân hệ Nguyên vật liệu & Công thức BOM (`InventoryController` & `InventoryService`)
-Bảo vệ bởi `@UseGuards(JwtAuthGuard, RolesGuard)` + `@Roles(Role.ADMIN)`:
+### 2.3. Phân hệ Giá nhập Nguyên liệu & Nhật ký Kho (`InventoryController`)
+- `POST /inventory/ingredients` & `PATCH /inventory/ingredients/:id`: Hỗ trợ cập nhật `costPerUnit` (đơn giá nhập).
+- `PATCH /inventory/ingredients/:id/restock` & `PATCH /inventory/ingredients/:id/stock`: Nhận thêm `unitCost`, `totalCost`, `note` và tự động ghi vào bảng `InventoryLog`.
+- `GET /inventory/logs` (`ADMIN`): Xem lịch sử nhập/xuất kho kèm tổng chi phí nhập hàng.
 
-| Phương thức & Endpoint | Quyền | Chức năng chi tiết |
-| :--- | :---: | :--- |
-| `POST /inventory/ingredients` | `ADMIN` | Thêm nguyên vật liệu mới (`code`, `name`, `unit`, `stock`, `minThreshold`). Kiểm tra trùng `code`. |
-| `PATCH /inventory/ingredients/:id` | `ADMIN` | Chỉnh sửa thông tin nguyên vật liệu (`code`, `name`, `unit`, `minThreshold`, `stock`). |
-| `DELETE /inventory/ingredients/:id` | `ADMIN` | Xóa nguyên vật liệu khỏi kho (`Cascade` xóa các dòng công thức liên quan). |
-| `POST /inventory/recipes` | `ADMIN` | Thêm hoặc cập nhật (`upsert`) một dòng định lượng nguyên liệu cho Sản phẩm (`productId`, `ingredientId`, `size`, `amount`). |
-| `PATCH /inventory/recipes/:id` | `ADMIN` | Điều chỉnh nhanh định lượng `amount` hoặc `size` của một dòng công thức BOM. |
-| `DELETE /inventory/recipes/:id` | `ADMIN` | Xóa một nguyên liệu khỏi công thức của món. |
-| `PATCH /inventory/topping-recipes/:id` | `ADMIN` | Điều chỉnh định lượng tiêu hao nguyên liệu của Topping. |
-| `GET /inventory/dashboard` | `ADMIN`, `STAFF` | Mở rộng trả về thêm `topSellingProducts` (Top món bán chạy tính từ các đơn hợp lệ) và đầy đủ danh sách `recentOrders` kèm `items`. |
-
-### 2.3. Phân hệ Quản lý Đơn hàng & Hoàn kho khi Hủy đơn (`OrdersService`)
-- Khi Admin hoặc Staff chuyển trạng thái đơn hàng từ `PAID / PREPARING / READY` sang **`CANCELLED`** thông qua `PATCH /orders/:id/status`:
-  - Hệ thống tự động tính toán lượng nguyên vật liệu đã trừ của đơn hàng đó (theo từng món + size + topping) và **hoàn trả lại (`increment`) vào tồn kho `Ingredient.stock`** trong cùng một Prisma Transaction để đảm bảo số liệu kho chính xác 100%.
-
----
-
-## 3. Thiết kế Giao diện Cổng Quản Trị (`/admin`) — 5 Phân Hệ Chuyên Nghiệp
-
-Bố cục Sidebar bên trái của `/admin` gồm **5 Tab nghiệp vụ**:
-
-1. **Tổng Quan (`overview`):**
-   - 4 thẻ KPI lớn: Tổng Doanh Thu Thực Nhận, Tổng Nguyên Liệu, Cảnh Báo Sắp Hết / Cạn Kho, Số Món Đang Mở Bán / Đang Ẩn.
-   - Bảng cảnh báo nhanh nguyên liệu sắp cạn kèm nút **"Nhập kho ngay"**.
-   - Bảng **Top Món Bán Chạy Nhất (Best-Sellers)** kèm số ly đã bán & doanh thu đóng góp.
-
-2. **Quản Lý Thực Đơn (`products` — MỚI):**
-   - Thanh công cụ: Tìm kiếm theo tên/mô tả, lọc theo Danh mục (`Tất cả`, `Cà phê Việt`, `Espresso`, `Trà & Matcha`, `Cold Brew`, `Bánh ngọt`), lọc theo trạng thái (`Đang hiện`, `Đang ẩn`, `Hết hàng`), và nút **"+ Thêm món mới"**.
-   - Lưới thẻ Quản trị Sản phẩm:
-     - Hiển thị ảnh món, nhãn `tag`, danh mục, giá bán, mô tả, số ly có thể pha (`availableServings`).
-     - **2 công tắc (Toggle Switches) trực tiếp trên thẻ:**
-       - 👁️ **Hiển thị trên Menu (`isActive`):** Bật/tắt tức thì (ẩn hoặc hiện món bên trang `/menu` của khách).
-       - 🚫 **Báo hết hàng (`isSoldOutManual`):** Chủ động khóa đặt món (hiện nhãn Sold Out bên khách) ngay cả khi kho còn nguyên liệu.
-     - **3 nút thao tác trên mỗi thẻ:**
-       - ✏️ **Chỉnh sửa:** Mở Modal chỉnh sửa đầy đủ (Tên, Mô tả, Giá bán, Danh mục, Nhãn Tag, và Bộ chọn ảnh 3 chế độ: *Thư viện ảnh quán / Tải ảnh từ máy tính / Dán URL* kèm khung Live Preview).
-       - 🧪 **Cấu hình BOM:** Nhảy thẳng sang Tab Định lượng BOM và mở ngay trình chỉnh sửa công thức của món đó.
-       - 🗑️ **Xóa món:** Mở hộp thoại xác nhận cảnh báo số công thức BOM đi kèm trước khi xóa vĩnh viễn.
-
-3. **Kho Nguyên Liệu (`inventory` — NÂNG CẤP FULL CRUD):**
-   - Nút **"+ Thêm nguyên vật liệu mới"** trên góc phải.
-   - Mỗi thẻ nguyên vật liệu trong Bento Grid có đầy đủ các nút:
-     - **+ Nhập hàng (`restock`)**
-     - **Kiểm kê (`set stock`)**
-     - **✏️ Sửa thông tin (`edit`):** Đổi tên, mã code, đơn vị tính (`g, ml, phần`), và ngưỡng cảnh báo tối thiểu (`minThreshold`).
-     - **🗑️ Xóa nguyên liệu (`delete`):** Có hộp thoại xác nhận cảnh báo số món đang dùng nguyên liệu này.
-
-4. **Định Lượng BOM (`recipes` — NÂNG CẤP TRÌNH CHỈNH SỬA TRỰC TIẾP):**
-   - Cho phép lọc xem công thức của từng món hoặc tất cả các món.
-   - Trên mỗi món:
-     - Sửa trực tiếp định lượng (`amount`) của từng nguyên liệu theo từng Size (`S`, `M`, `L`, `ALL`) và bấm lưu.
-     - Nút **"+ Thêm nguyên liệu vào món"**: Chọn nguyên liệu từ kho, chọn Size (`S/M/L/ALL`), nhập định lượng tiêu hao.
-     - Nút **🗑️ Xóa dòng nguyên liệu** khỏi công thức món.
-   - Cho phép chỉnh sửa định lượng tiêu hao của 4 loại Topping ở bảng dưới.
-
-5. **Doanh Thu & Đơn Hàng (`revenue` — NÂNG CẤP QUẢN TRỊ ĐƠN HÀNG):**
-   - Bộ lọc trạng thái đơn hàng (`Tất cả`, `Chờ pha (PAID)`, `Đang pha (PREPARING)`, `Chờ lấy (READY)`, `Hoàn tất (COMPLETED)`, `Đã hủy (CANCELLED)`) và ô tìm kiếm theo mã đơn `#ID` hoặc tên/email khách.
-   - Bảng danh sách đơn hàng:
-     - Bấm **"Chi tiết"** để xem Modal hóa đơn đầy đủ (danh sách từng món, size, topping, đơn giá, giảm giá, thông tin khách hàng).
-     - Cho phép Admin bấm chuyển trạng thái tiếp theo (`Bắt đầu pha`, `Báo có nước`, `Hoàn tất`) hoặc bấm **"Hủy đơn & Hoàn kho"** (kèm xác nhận).
-   - Khối **Thống kê Top Món Bán Chạy Nhất** theo số lượng ly và doanh thu.
-
----
-
-## 4. Kế hoạch Kiểm thử (Verification & Unit Tests)
-1. **Unit Tests (Vitest):** Bổ sung unit test cho `ProductsService` (tạo, sửa, ẩn/hiện, xóa sản phẩm) và `InventoryService` (thêm/sửa/xóa nguyên liệu, thêm/sửa/xóa công thức BOM).
-2. **Build & Docker:** Chạy `npx prisma migrate deploy`, build cả Backend & Frontend, cập nhật container Docker và push toàn bộ code lên nhánh `MaGiaVy-admin,customer`.
+### 2.4. Phân hệ Quản lý Mã giảm giá / Voucher (`InventoryController` & `OrdersService`)
+- `GET /inventory/vouchers` (Public/Admin): Lấy danh sách mã giảm giá.
+- `POST /inventory/vouchers` (`ADMIN`): Tạo mã giảm giá mới (`code`, `description`, `discountPercent`, `minOrderAmount`, `isActive`).
+- `PATCH /inventory/vouchers/:id` (`ADMIN`): Sửa thông tin `%` giảm, đơn tối thiểu, bật/tắt `isActive`.
+- `DELETE /inventory/vouchers/:id` (`ADMIN`): Xóa mã giảm giá.
+- Tích hợp vào `OrdersService.createOrder`: Tra cứu mã giảm giá từ bảng `DiscountCode` (kiểm tra `isActive` và `minOrderAmount`), cộng tăng `usageCount` khi khách áp mã thành công.

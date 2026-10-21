@@ -25,6 +25,16 @@ export class CreateProductDto {
   basePrice: number;
 
   @IsOptional()
+  @IsNumber()
+  @Min(0)
+  sizeUpchargeM?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  sizeUpchargeL?: number | null;
+
+  @IsOptional()
   @IsString()
   category?: string;
 
@@ -59,6 +69,16 @@ export class UpdateProductDto {
   @IsNumber()
   @Min(0, { message: 'Giá bán không được âm' })
   basePrice?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  sizeUpchargeM?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  sizeUpchargeL?: number | null;
 
   @IsOptional()
   @IsString()

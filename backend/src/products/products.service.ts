@@ -10,10 +10,14 @@ import {
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private enrichProductStock(product: any, orderCountMap?: Record<number, number>) {
+  private enrichProductStock(
+    product: any,
+    orderCountMap?: Record<number, number>,
+  ) {
     if (!product) return product;
 
     const manualSoldOut = Boolean(product.isSoldOutManual);
+    const basePrice = Number(product.basePrice || 0);
 
     if (!Array.isArray(product.recipes) || product.recipes.length === 0) {
       return {
@@ -22,7 +26,14 @@ export class ProductsService {
         ingredientOutOfStock: false,
         availableServings: manualSoldOut ? 0 : 99,
         recipesCount: 0,
-        orderItemsCount: orderCountMap ? (orderCountMap[product.id] ?? 0) : undefined,
+        orderItemsCount: orderCountMap
+          ? (orderCountMap[product.id] ?? 0)
+          : undefined,
+        cogsSizeS: 0,
+        cogsSizeM: 0,
+        cogsSizeL: 0,
+        grossProfitS: basePrice,
+        marginPercentS: 100,
       };
     }
 
@@ -49,13 +60,42 @@ export class ProductsService {
     const computedServings =
       minServings === Infinity ? 99 : Math.max(0, minServings);
 
+    // Tính Giá vốn (COGS) theo từng Size (S, M, L) dựa trên Recipe.amount * Ingredient.costPerUnit
+    const calcCogsForSize = (targetSize: string) => {
+      const sizeRecs = product.recipes.filter(
+        (r: any) => r.size === targetSize || r.size === 'ALL',
+      );
+      return Math.round(
+        sizeRecs.reduce((sum: number, r: any) => {
+          const unitCost = Number(r.ingredient?.costPerUnit || 0);
+          return sum + Number(r.amount || 0) * unitCost;
+        }, 0),
+      );
+    };
+
+    const cogsSizeS = calcCogsForSize('S');
+    const cogsSizeM = calcCogsForSize('M') || cogsSizeS;
+    const cogsSizeL = calcCogsForSize('L') || cogsSizeM;
+    const grossProfitS = Math.round(basePrice - cogsSizeS);
+    const marginPercentS =
+      basePrice > 0
+        ? Math.max(0, Math.round((grossProfitS / basePrice) * 100))
+        : 0;
+
     return {
       ...product,
       isOutOfStock: manualSoldOut || ingredientOutOfStock,
       ingredientOutOfStock,
       availableServings: manualSoldOut ? 0 : computedServings,
       recipesCount: product.recipes.length,
-      orderItemsCount: orderCountMap ? (orderCountMap[product.id] ?? 0) : undefined,
+      orderItemsCount: orderCountMap
+        ? (orderCountMap[product.id] ?? 0)
+        : undefined,
+      cogsSizeS,
+      cogsSizeM,
+      cogsSizeL,
+      grossProfitS,
+      marginPercentS,
     };
   }
 
@@ -115,6 +155,10 @@ export class ProductsService {
         description: dto.description?.trim() || null,
         imageUrl: dto.imageUrl?.trim() || '/images/products/ca-phe-sua.png',
         basePrice: dto.basePrice,
+        sizeUpchargeM:
+          dto.sizeUpchargeM !== undefined ? dto.sizeUpchargeM : null,
+        sizeUpchargeL:
+          dto.sizeUpchargeL !== undefined ? dto.sizeUpchargeL : null,
         category: dto.category || 'vietnamese',
         tag: dto.tag?.trim() || 'Phổ biến',
         isActive: dto.isActive ?? true,
@@ -146,6 +190,12 @@ export class ProductsService {
           ? { imageUrl: dto.imageUrl.trim() || null }
           : {}),
         ...(dto.basePrice !== undefined ? { basePrice: dto.basePrice } : {}),
+        ...(dto.sizeUpchargeM !== undefined
+          ? { sizeUpchargeM: dto.sizeUpchargeM }
+          : {}),
+        ...(dto.sizeUpchargeL !== undefined
+          ? { sizeUpchargeL: dto.sizeUpchargeL }
+          : {}),
         ...(dto.category !== undefined ? { category: dto.category } : {}),
         ...(dto.tag !== undefined ? { tag: dto.tag.trim() || null } : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),

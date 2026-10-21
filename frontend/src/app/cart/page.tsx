@@ -320,12 +320,23 @@ function LocationCard() {
 }
 
 /** Card 2: Promo code */
+interface VoucherItem {
+  code: string;
+  description: string;
+  discountPercent: number;
+  minOrderAmount: number;
+}
+
 function PromoCard({
   appliedCode,
+  appliedPercent,
+  vouchers,
   onApply,
   onRemove,
 }: {
   appliedCode: string | null;
+  appliedPercent?: number;
+  vouchers?: VoucherItem[];
   onApply: (code: string) => void;
   onRemove: () => void;
 }) {
@@ -372,10 +383,10 @@ function PromoCard({
             <CheckCircle2 size={16} className="text-emerald-600 shrink-0" strokeWidth={2} />
             <div className="min-w-0">
               <p className="text-[13px] font-bold text-[#2c1810] font-body">
-                {`Mã ${appliedCode} (-15% Giờ vàng)`}
+                {`Mã ${appliedCode} (-${appliedPercent ?? 15}% Ưu đãi)`}
               </p>
               <p className="text-[11px] text-stone-500 font-body">
-                {"Đã áp dụng giảm 15% vào đơn hàng".normalize("NFC")}
+                {`Đã áp dụng giảm ${appliedPercent ?? 15}% vào đơn hàng`.normalize("NFC")}
               </p>
             </div>
           </div>
@@ -391,17 +402,26 @@ function PromoCard({
       )}
 
       {!appliedCode && (
-        <p className="text-[11px] text-stone-400 font-body">
-          {"Thử mã ".normalize("NFC")}
-          <button
-            type="button"
-            onClick={() => onApply("BREWCOZY")}
-            className="font-mono font-bold text-[#845326] bg-[#fff2e5] hover:bg-[#fde7d4] px-1.5 py-0.5 rounded transition"
-          >
-            BREWCOZY
-          </button>
-          {" để nhận ưu đãi -15% giờ vàng hôm nay!".normalize("NFC")}
-        </p>
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-stone-400 font-body">
+          <span>{"Mã khả dụng:".normalize("NFC")}</span>
+          {(vouchers && vouchers.length > 0
+            ? vouchers
+            : [
+                { code: "BREWCOZY", description: "Giờ vàng -15%", discountPercent: 15, minOrderAmount: 0 },
+                { code: "BREW10", description: "Ưu đãi -10%", discountPercent: 10, minOrderAmount: 0 },
+              ]
+          ).map((v) => (
+            <button
+              key={v.code}
+              type="button"
+              onClick={() => onApply(v.code)}
+              title={v.description}
+              className="font-mono font-bold text-[#845326] bg-[#fff2e5] hover:bg-[#fde7d4] px-1.5 py-0.5 rounded transition cursor-pointer"
+            >
+              {v.code} (-{v.discountPercent}%)
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -657,6 +677,10 @@ export default function CartPage() {
 
   const [hydrated, setHydrated] = useState(false);
   const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
+  const [availableVouchers, setAvailableVouchers] = useState<VoucherItem[]>([
+    { code: "BREWCOZY", description: "Giờ vàng -15%", discountPercent: 15, minOrderAmount: 0 },
+    { code: "BREW10", description: "Ưu đãi thành viên -10%", discountPercent: 10, minOrderAmount: 0 },
+  ]);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const router = useRouter();
@@ -670,20 +694,36 @@ export default function CartPage() {
 
   useEffect(() => {
     setHydrated(true);
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    fetch(`${apiBase}/inventory/pricing-config`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.vouchers) && data.vouchers.length > 0) {
+          setAvailableVouchers(data.vouchers);
+        }
+      })
+      .catch(() => {
+        // Fallback to static vouchers
+      });
   }, []);
 
   const count = hydrated ? cartCount() : 0;
   const subtotal = hydrated ? cartTotal() : 0;
   const displayItems = hydrated ? items : [];
 
-  // Calculate discount based on promo code
-  const discountRate =
-    appliedPromo === "BREWCOZY"
+  // Calculate discount based on dynamic promo code configured by Admin (or fallback)
+  const matchedVoucher = availableVouchers.find((v) => v.code === appliedPromo);
+  const discountRate = matchedVoucher
+    ? matchedVoucher.discountPercent / 100
+    : appliedPromo === "BREWCOZY"
       ? 0.15
       : appliedPromo === "BREW10"
         ? 0.1
         : 0;
-  const discountAmount = Math.round(subtotal * discountRate);
+  const discountAmount =
+    matchedVoucher && subtotal < (matchedVoucher.minOrderAmount || 0)
+      ? 0
+      : Math.round(subtotal * discountRate);
 
   // Match the product for editing in modal
   const editingProduct: Product | null = useMemo(() => {
@@ -904,6 +944,8 @@ export default function CartPage() {
               <LocationCard />
               <PromoCard
                 appliedCode={appliedPromo}
+                appliedPercent={Math.round(discountRate * 100)}
+                vouchers={availableVouchers}
                 onApply={(code) => setAppliedPromo(code)}
                 onRemove={() => setAppliedPromo(null)}
               />

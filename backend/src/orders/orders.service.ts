@@ -113,7 +113,7 @@ export class OrdersService {
       0,
     );
 
-    // 2. Xử lý mã giảm giá (Voucher / Discount Code)
+    // 2. Xử lý mã giảm giá (Voucher / Discount Code từ DB + Fallback mặc định)
     let discountAmount = 0;
     let appliedDiscountCode: string | null = null;
 
@@ -128,13 +128,46 @@ export class OrdersService {
         BREW50: 0.5, // Giảm 50%
       };
 
-      if (!DISCOUNT_RATES[code]) {
+      let matchedRate: number | null = null;
+
+      if ((this.prisma as any).discountCode?.findUnique) {
+        const dbVoucher = await (this.prisma as any).discountCode.findUnique({
+          where: { code },
+        });
+        if (dbVoucher) {
+          if (!dbVoucher.isActive) {
+            throw new BadRequestException(
+              `Mã giảm giá "${code}" hiện đang tạm ngưng áp dụng.`,
+            );
+          }
+          if (rawSubtotal < Number(dbVoucher.minOrderAmount || 0)) {
+            throw new BadRequestException(
+              `Mã "${code}" yêu cầu đơn hàng tối thiểu ${Number(
+                dbVoucher.minOrderAmount,
+              ).toLocaleString('vi-VN')}đ.`,
+            );
+          }
+          matchedRate = Number(dbVoucher.discountPercent || 0) / 100;
+          await (this.prisma as any).discountCode
+            .update({
+              where: { id: dbVoucher.id },
+              data: { usageCount: { increment: 1 } },
+            })
+            .catch(() => undefined);
+        }
+      }
+
+      if (matchedRate === null && DISCOUNT_RATES[code] !== undefined) {
+        matchedRate = DISCOUNT_RATES[code];
+      }
+
+      if (matchedRate === null) {
         throw new BadRequestException(
           `Mã giảm giá "${dto.discountCode}" không hợp lệ hoặc đã hết hạn.`,
         );
       }
 
-      discountAmount = Math.round(rawSubtotal * DISCOUNT_RATES[code]);
+      discountAmount = Math.round(rawSubtotal * matchedRate);
       appliedDiscountCode = code;
     }
 

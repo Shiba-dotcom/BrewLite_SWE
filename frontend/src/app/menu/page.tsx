@@ -29,6 +29,8 @@ export interface Product {
   description: string | null;
   imageUrl: string | null;
   basePrice: number;
+  sizeUpchargeM?: number | null;
+  sizeUpchargeL?: number | null;
   stock?: number;
   isOutOfStock?: boolean;
   availableServings?: number;

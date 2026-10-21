@@ -146,7 +146,7 @@ async function main() {
     console.log(`Products already exist (${existingProductCount}), preserving Admin customizations.`);
   }
 
-  // ─── 2. SEED INGREDIENTS (12 NGUYÊN LIỆU PHA CHẾ + 3 BÁNH NHẬP SẴN) ─────────
+  // ─── 2. SEED INGREDIENTS (12 NGUYÊN LIỆU PHA CHẾ + 3 BÁNH NHẬP SẴN KÈM GIÁ NHẬP) ─────────
   const ingredientsData = [
     {
       code: 'ING_ROBUSTA',
@@ -154,6 +154,7 @@ async function main() {
       unit: 'g',
       stock: 5000,
       minThreshold: 500,
+      costPerUnit: 220, // 220.000đ / 1 Kg
     },
     {
       code: 'ING_ARABICA',
@@ -161,6 +162,7 @@ async function main() {
       unit: 'g',
       stock: 3000,
       minThreshold: 300,
+      costPerUnit: 350, // 350.000đ / 1 Kg
     },
     {
       code: 'ING_MILK_COND',
@@ -168,6 +170,7 @@ async function main() {
       unit: 'ml',
       stock: 10000,
       minThreshold: 1000,
+      costPerUnit: 55, // 55.000đ / 1 Lít
     },
     {
       code: 'ING_MILK_FRESH',
@@ -175,6 +178,7 @@ async function main() {
       unit: 'ml',
       stock: 15000,
       minThreshold: 1500,
+      costPerUnit: 38, // 38.000đ / 1 Lít
     },
     {
       code: 'ING_CREAM_RICH',
@@ -182,6 +186,7 @@ async function main() {
       unit: 'ml',
       stock: 5000,
       minThreshold: 500,
+      costPerUnit: 85, // 85.000đ / 1 Lít
     },
     {
       code: 'ING_MATCHA',
@@ -189,6 +194,7 @@ async function main() {
       unit: 'g',
       stock: 1000,
       minThreshold: 150,
+      costPerUnit: 950, // 950.000đ / 1 Kg
     },
     {
       code: 'ING_TEA_BLACK',
@@ -196,6 +202,7 @@ async function main() {
       unit: 'ml',
       stock: 10000,
       minThreshold: 1000,
+      costPerUnit: 18, // 18.000đ / 1 Lít cốt trà
     },
     {
       code: 'ING_PEACH',
@@ -203,6 +210,7 @@ async function main() {
       unit: 'lát',
       stock: 200,
       minThreshold: 30,
+      costPerUnit: 2500, // 2.500đ / 1 lát đào
     },
     {
       code: 'ING_SYRUP_ORANGE',
@@ -210,6 +218,7 @@ async function main() {
       unit: 'ml',
       stock: 3000,
       minThreshold: 300,
+      costPerUnit: 140, // 140.000đ / 1 Lít
     },
     {
       code: 'ING_CARAMEL',
@@ -217,6 +226,7 @@ async function main() {
       unit: 'ml',
       stock: 2000,
       minThreshold: 200,
+      costPerUnit: 180, // 180.000đ / 1 Lít
     },
     {
       code: 'ING_BOBA',
@@ -224,6 +234,7 @@ async function main() {
       unit: 'g',
       stock: 4000,
       minThreshold: 500,
+      costPerUnit: 65, // 65.000đ / 1 Kg
     },
     {
       code: 'ING_SEA_SALT',
@@ -231,6 +242,7 @@ async function main() {
       unit: 'g',
       stock: 1000,
       minThreshold: 100,
+      costPerUnit: 40, // 40.000đ / 1 Kg
     },
     // 3 món bánh ngọt nhập sẵn theo số lượng đơn vị
     {
@@ -239,6 +251,7 @@ async function main() {
       unit: 'chiếc',
       stock: 30,
       minThreshold: 5,
+      costPerUnit: 18000, // 18.000đ / 1 chiếc
     },
     {
       code: 'ING_CHEESECAKE',
@@ -246,6 +259,7 @@ async function main() {
       unit: 'lát',
       stock: 25,
       minThreshold: 5,
+      costPerUnit: 22000, // 22.000đ / 1 lát
     },
     {
       code: 'ING_TIRAMISU',
@@ -253,19 +267,23 @@ async function main() {
       unit: 'phần',
       stock: 25,
       minThreshold: 5,
+      costPerUnit: 24000, // 24.000đ / 1 phần
     },
   ];
 
   console.log('Seeding ingredients...');
   const ingMap: Record<string, number> = {};
   for (const ing of ingredientsData) {
+    const existingIng = await prisma.ingredient.findUnique({ where: { code: ing.code } });
     const record = await prisma.ingredient.upsert({
       where: { code: ing.code },
       update: {
         name: ing.name,
         unit: ing.unit,
-        stock: ing.stock,
         minThreshold: ing.minThreshold,
+        ...(existingIng && existingIng.costPerUnit === 0
+          ? { costPerUnit: ing.costPerUnit }
+          : {}),
       },
       create: ing,
     });
@@ -385,35 +403,45 @@ async function main() {
     }
   }
 
-  // ─── 4. SEED TOPPING RECIPES (4 LOẠI TOPPING) ───────────────────────────────
+  // ─── 4. SEED TOPPING RECIPES (4 LOẠI TOPPING KÈM GIÁ BÁN & MÔ TẢ) ───────────
   const toppingRecipesData = [
     {
       toppingId: 'boba',
       toppingName: 'Trân châu trắng giòn',
+      subtext: 'Crystal boba dẻo dai',
+      price: 8000,
       ingCode: 'ING_BOBA',
       amount: 40,
     },
     {
       toppingId: 'cream',
       toppingName: 'Thêm Kem Muối Béo',
+      subtext: 'Velvety Salted Foam',
+      price: 10000,
       ingCode: 'ING_CREAM_RICH',
       amount: 35,
     },
     {
       toppingId: 'cream',
       toppingName: 'Thêm Kem Muối Béo',
+      subtext: 'Velvety Salted Foam',
+      price: 10000,
       ingCode: 'ING_SEA_SALT',
       amount: 1,
     },
     {
       toppingId: 'jelly',
       toppingName: 'Thạch Cà Phê Phin',
+      subtext: 'Đậm vị Robusta giòn sần sật',
+      price: 8000,
       ingCode: 'ING_ROBUSTA',
       amount: 10,
     },
     {
       toppingId: 'shot',
       toppingName: 'Thêm 1 Shot Espresso',
+      subtext: 'Tăng cường tỉnh táo đậm sâu',
+      price: 12000,
       ingCode: 'ING_ARABICA',
       amount: 18,
     },
@@ -430,16 +458,54 @@ async function main() {
           ingredientId,
         },
       },
-      update: {
-        toppingName: tr.toppingName,
-        amount: tr.amount,
-      },
+      update: {},
       create: {
         toppingId: tr.toppingId,
         toppingName: tr.toppingName,
+        subtext: tr.subtext,
+        price: tr.price,
+        isActive: true,
         ingredientId,
         amount: tr.amount,
       },
+    });
+  }
+
+  // ─── 4B. SEED DEFAULT GLOBAL SIZE PRICING & VOUCHERS ───────────────────────
+  const defaultSettings = [
+    { key: 'SIZE_UPCHARGE_S', value: '0', description: 'Phụ thu Size S chuẩn toàn quán (VNĐ)' },
+    { key: 'SIZE_UPCHARGE_M', value: '5000', description: 'Phụ thu Size M chuẩn toàn quán (VNĐ)' },
+    { key: 'SIZE_UPCHARGE_L', value: '10000', description: 'Phụ thu Size L chuẩn toàn quán (VNĐ)' },
+  ];
+  for (const st of defaultSettings) {
+    await prisma.storeSetting.upsert({
+      where: { key: st.key },
+      update: {},
+      create: st,
+    });
+  }
+
+  const defaultVouchers = [
+    {
+      code: 'BREWCOZY',
+      description: 'Ưu đãi Giờ vàng giảm 15% toàn menu',
+      discountPercent: 15,
+      minOrderAmount: 0,
+      isActive: true,
+    },
+    {
+      code: 'BREW10',
+      description: 'Ưu đãi thành viên giảm 10% đơn hàng',
+      discountPercent: 10,
+      minOrderAmount: 0,
+      isActive: true,
+    },
+  ];
+  for (const v of defaultVouchers) {
+    await prisma.discountCode.upsert({
+      where: { code: v.code },
+      update: {},
+      create: v,
     });
   }
 

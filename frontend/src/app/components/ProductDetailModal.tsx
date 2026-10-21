@@ -96,6 +96,41 @@ export default function ProductDetailModal({
   const [isFavorite, setIsFavorite] = useState<boolean>(false);
   const [showToast, setShowToast] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string>("");
+  const [availableToppings, setAvailableToppings] = useState<ToppingItem[]>(AVAILABLE_TOPPINGS);
+  const [globalSizePricing, setGlobalSizePricing] = useState<{ sizeS: number; sizeM: number; sizeL: number }>({
+    sizeS: 0,
+    sizeM: 5000,
+    sizeL: 10000,
+  });
+
+  useEffect(() => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    fetch(`${apiBase}/inventory/pricing-config`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data) return;
+        if (data.sizePricing) {
+          setGlobalSizePricing({
+            sizeS: Number(data.sizePricing.sizeS ?? 0),
+            sizeM: Number(data.sizePricing.sizeM ?? 5000),
+            sizeL: Number(data.sizePricing.sizeL ?? 10000),
+          });
+        }
+        if (Array.isArray(data.toppings) && data.toppings.length > 0) {
+          setAvailableToppings(
+            data.toppings.map((t: { id: string; name?: string; toppingName?: string; subtext?: string; price: number }) => ({
+              id: t.id,
+              name: (t.name || t.toppingName || "").normalize("NFC"),
+              subtext: (t.subtext || "Topping đặc biệt").normalize("NFC"),
+              price: Number(t.price ?? 8000),
+            }))
+          );
+        }
+      })
+      .catch(() => {
+        // Fallback to static defaults when backend is offline
+      });
+  }, [isOpen]);
 
   // Initialize or reset defaults when a new product or initialCustomization is provided
   useEffect(() => {
@@ -105,7 +140,7 @@ export default function ProductDetailModal({
         setTemperature(initialCustomization.temp || "iced");
         setSweetness(initialCustomization.sweetness || "100%");
         setIceLevel(initialCustomization.ice || "Đá thường (100%)");
-        const matchingToppings = AVAILABLE_TOPPINGS.filter((t) =>
+        const matchingToppings = availableToppings.filter((t) =>
           initialCustomization.toppings?.some(
             (top) =>
               top.toLowerCase().includes(t.name.toLowerCase()) ||
@@ -137,7 +172,7 @@ export default function ProductDetailModal({
         setShowToast(false);
       }
     }
-  }, [product, initialCustomization, isOpen]);
+  }, [product, initialCustomization, isOpen, availableToppings]);
 
   // Close modal on Escape key
   useEffect(() => {
@@ -162,11 +197,20 @@ export default function ProductDetailModal({
   }
 
   const sizeConfig: Record<"S" | "M" | "L", SizeItemConfig> = useMemo(() => {
+    const extraS = globalSizePricing.sizeS;
+    const extraM =
+      product?.sizeUpchargeM !== null && product?.sizeUpchargeM !== undefined
+        ? Number(product.sizeUpchargeM)
+        : globalSizePricing.sizeM;
+    const extraL =
+      product?.sizeUpchargeL !== null && product?.sizeUpchargeL !== undefined
+        ? Number(product.sizeUpchargeL)
+        : globalSizePricing.sizeL;
     return {
       S: {
         code: "S",
         label: "Nhỏ - 250ml".normalize("NFC"),
-        extra: 0,
+        extra: extraS,
         badgeText: "S",
         icon: "local_cafe",
         popular: false,
@@ -174,7 +218,7 @@ export default function ProductDetailModal({
       M: {
         code: "M",
         label: "Vừa - 350ml".normalize("NFC"),
-        extra: 5000,
+        extra: extraM,
         badgeText: "M",
         popular: true,
         icon: "local_cafe",
@@ -182,20 +226,20 @@ export default function ProductDetailModal({
       L: {
         code: "L",
         label: "Lớn - 500ml".normalize("NFC"),
-        extra: 10000,
+        extra: extraL,
         badgeText: "L",
         icon: "emoji_food_beverage",
         popular: false,
       },
     };
-  }, []);
+  }, [product, globalSizePricing]);
 
   const sizeExtraPrice = sizeConfig[selectedSize].extra;
 
   // Selected toppings list and total extra price
   const selectedToppingsList = useMemo(() => {
-    return AVAILABLE_TOPPINGS.filter((t) => selectedToppingIds.includes(t.id));
-  }, [selectedToppingIds]);
+    return availableToppings.filter((t) => selectedToppingIds.includes(t.id));
+  }, [selectedToppingIds, availableToppings]);
 
   const toppingsExtraPrice = useMemo(() => {
     return selectedToppingsList.reduce((sum, item) => sum + item.price, 0);
@@ -752,7 +796,7 @@ export default function ProductDetailModal({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="toppings-container">
-                {AVAILABLE_TOPPINGS.map((topping) => {
+                {availableToppings.map((topping) => {
                   const isChecked = selectedToppingIds.includes(topping.id);
 
                   return (
