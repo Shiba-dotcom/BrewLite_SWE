@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -88,5 +89,17 @@ export class OrdersController {
       req.user.userId,
       req.user.role,
     );
+  }
+
+  /**
+   * DELETE /orders/:id — Xóa đơn hàng đã hủy hoặc chưa thanh toán
+   */
+  @UseGuards(JwtAuthGuard)
+  @Delete(':id')
+  deleteOrder(
+    @Request() req: AuthRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.ordersService.deleteOrder(id, req.user.userId, req.user.role);
   }
 }

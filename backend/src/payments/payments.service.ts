@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -81,6 +82,17 @@ export class PaymentsService {
 
     if (!order) {
       throw new NotFoundException(`Khong tim thay don hang voi ma #${dto.orderId}`);
+    }
+
+    if (order.status === OrderStatus.CANCELLED) {
+      throw new BadRequestException('Đơn hàng đã bị hủy hoặc hết hạn thanh toán (quá 5 phút). Vui lòng tạo đơn mới.');
+    }
+
+    if (order.status === OrderStatus.PENDING) {
+      const isExpired = Date.now() - new Date(order.createdAt).getTime() > 5 * 60 * 1000;
+      if (isExpired) {
+        throw new BadRequestException('Đơn hàng đã hết hạn thanh toán (quá 5 phút). Vui lòng tạo đơn mới.');
+      }
     }
 
     // 3. Kiem tra quyen so huu don hang (chong IDOR)

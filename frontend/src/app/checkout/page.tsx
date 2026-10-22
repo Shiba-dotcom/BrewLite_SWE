@@ -25,16 +25,129 @@ import {
   ScanFace,
   CheckCircle2,
   X,
+  Snowflake,
+  Flame,
 } from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { apiFetch, useAuthStore } from "../store/authStore";
-import { useCartStore } from "../store/cartStore";
-import { DEFAULT_PRODUCTS } from "../menu/page";
+import { useCartStore, isBakeryProduct } from "../store/cartStore";
+import { DEFAULT_PRODUCTS } from "../utils/productUtils";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function vnd(n: number) {
   return (n || 0).toLocaleString("vi-VN") + "đ";
+}
+
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+}
+
+function AttributeBadge({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1 bg-[#F5EFEB] text-stone-800 border border-[#EAE2D5] text-[10px] md:text-[11px] font-semibold px-2 py-0.5 rounded-full font-body whitespace-nowrap">
+      {children}
+    </span>
+  );
+}
+
+function ToppingBadge({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-0.5 bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] font-bold text-[10px] md:text-[11px] px-2 py-0.5 rounded-full font-body whitespace-nowrap shadow-2xs">
+      {children}
+    </span>
+  );
+}
+
+function formatIceLevel(ice?: string): string {
+  if (!ice) return "100% đá";
+  const val = ice.trim();
+  if (val.includes("100%")) return "100% đá";
+  if (val.includes("70%")) return "70% đá";
+  if (val.includes("50%")) return "50% đá";
+  if (
+    val.includes("0%") ||
+    val.toLowerCase().includes("không") ||
+    val.toLowerCase().includes("khong")
+  ) {
+    return "Không đá";
+  }
+  return val.endsWith("đá") ? val : `${val} đá`;
+}
+
+function formatSugarLevel(sugar?: string): string {
+  if (!sugar) return "100% đường";
+  const val = sugar.trim();
+  if (
+    val === "0%" ||
+    val.toLowerCase().includes("không") ||
+    val.toLowerCase().includes("khong")
+  ) {
+    return "Không đường";
+  }
+  if (val.endsWith("%")) {
+    return `${val} đường`;
+  }
+  if (
+    !val.toLowerCase().includes("đường") &&
+    !val.toLowerCase().includes("duong")
+  ) {
+    return `${val} đường`;
+  }
+  return val;
+}
+
+function getItemImage(item: { productId?: number; productName: string }): string {
+  if (item.productId) {
+    const byId = DEFAULT_PRODUCTS.find((p) => p.id === item.productId);
+    if (byId?.imageUrl) return byId.imageUrl;
+  }
+
+  const nameNorm = (item.productName || "").normalize("NFC").toLowerCase().trim();
+  const byName = DEFAULT_PRODUCTS.find(
+    (p) => p.name.normalize("NFC").toLowerCase().trim() === nameNorm
+  );
+  if (byName?.imageUrl) return byName.imageUrl;
+
+  if (nameNorm.includes("pain") || nameNorm.includes("chocolat")) {
+    return "/images/products/pain-au-chocolat.png";
+  }
+  if (nameNorm.includes("cheesecake")) {
+    return "/images/products/basque-burnt-cheesecake.png";
+  }
+  if (nameNorm.includes("tiramisu")) {
+    return "/images/products/classic-tiramisu.png";
+  }
+  if (nameNorm.includes("croissant") || nameNorm.includes("cruffin")) {
+    return "/images/products/pain-au-chocolat.png";
+  }
+  if (nameNorm.includes("muối") || nameNorm.includes("muoi")) {
+    return "/images/products/ca-phe-muoi.png";
+  }
+  if (nameNorm.includes("sữa") || nameNorm.includes("sua")) {
+    return "/images/products/ca-phe-sua.png";
+  }
+  if (nameNorm.includes("bạc xỉu") || nameNorm.includes("bac xiu")) {
+    return "/images/products/ca-phe-bac-xiu.png";
+  }
+  if (nameNorm.includes("đen") || nameNorm.includes("den")) {
+    return "/images/products/ca-phe-den.png";
+  }
+  if (nameNorm.includes("macchiato")) {
+    return "/images/products/iced-caramel-macchiato.png";
+  }
+  if (nameNorm.includes("matcha")) {
+    return "/images/products/matcha-latte.png";
+  }
+  if (nameNorm.includes("trà đào") || nameNorm.includes("cam sả")) {
+    return "/images/products/tra-dao-cam-sa.png";
+  }
+
+  return FALLBACK_DRINK_IMG;
 }
 
 // Biểu tượng Apple Pay chính thức (Logo Quả Táo + PAY liền khối chuẩn FontAwesome, tối ưu viewBox tỉ lệ vàng)
@@ -71,6 +184,8 @@ interface OrderDetail {
   id: number;
   status: "PENDING" | "PAID" | "PREPARING" | "READY" | "COMPLETED" | "PAYMENT_FAILED" | "CANCELLED";
   totalAmount: number;
+  discountCode?: string | null;
+  discountAmount?: number;
   createdAt: string;
   items: OrderItem[];
 }
@@ -89,6 +204,43 @@ function CheckoutContent() {
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loadingOrder, setLoadingOrder] = useState(true);
   const [orderFetchError, setOrderFetchError] = useState<string | null>(null);
+  const [customizationsMap, setCustomizationsMap] = useState<
+    Record<
+      string,
+      {
+        temp?: string;
+        temperature?: "HOT" | "COLD";
+        iceLevel?: string;
+        sugarLevel?: string;
+        servingStyle?: string;
+        isBakery?: boolean;
+        toppings?: string[];
+        notes?: string;
+      }
+    >
+  >({});
+
+  useEffect(() => {
+    if (!order?.id || typeof window === "undefined") return;
+    try {
+      const stored = localStorage.getItem(`order_customizations_${order.id}`);
+      if (stored) {
+        const list = JSON.parse(stored);
+        if (Array.isArray(list)) {
+          const map: Record<string, any> = {};
+          list.forEach((entry, idx) => {
+            map[`idx_${idx}`] = entry;
+            if (entry.productId) {
+              map[`prod_${entry.productId}`] = entry;
+            }
+          });
+          setCustomizationsMap(map);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [order?.id]);
 
   // Form State
   const [selectedMethod, setSelectedMethod] = useState<SelectedPaymentType>("EWALLET");
@@ -190,6 +342,41 @@ function CheckoutContent() {
     fetchOrder();
   }, [parsedOrderId, router]);
 
+  // ── Đếm ngược 5 phút tự động hủy đơn và hoàn trả kho ──
+  const [checkoutRemaining, setCheckoutRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!order || order.status !== "PENDING") {
+      setCheckoutRemaining(null);
+      return;
+    }
+
+    const calcRem = () => {
+      const expireTime = new Date(order.createdAt).getTime() + 5 * 60 * 1000;
+      return Math.max(0, Math.floor((expireTime - Date.now()) / 1000));
+    };
+
+    setCheckoutRemaining(calcRem());
+
+    const timer = setInterval(() => {
+      const rem = calcRem();
+      setCheckoutRemaining(rem);
+      if (rem <= 0) {
+        clearInterval(timer);
+        if (parsedOrderId) {
+          apiFetch(`/orders/${parsedOrderId}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => {
+              if (d) setOrder(d);
+            })
+            .catch(() => {});
+        }
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [order, parsedOrderId]);
+
   // Xử lý gửi thanh toán thực tế POST /payments tới Backend
   const executeBackendPayment = async (overrideMethod?: SelectedPaymentType) => {
     if (!order) return;
@@ -226,6 +413,9 @@ function CheckoutContent() {
       if (result.success) {
         // CHỈ XÓA GIỎ HÀNG KHI THANH TOÁN THÀNH CÔNG (Yêu cầu 6)
         clearCart();
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("brewlite_active_pending_order");
+        }
         router.push(`/order-confirmation?orderId=${order.id}`);
       } else {
         setErrorMessage(
@@ -281,6 +471,13 @@ function CheckoutContent() {
   const handlePayment = async () => {
     if (!order) return;
 
+    if (order.status === "CANCELLED" || (checkoutRemaining !== null && checkoutRemaining <= 0)) {
+      setErrorMessage(
+        "Đơn hàng này đã hết hạn thanh toán (quá 5 phút) và nguyên liệu đã được hoàn trả về kho. Vui lòng quay lại Giỏ hàng để tạo đơn mới."
+      );
+      return;
+    }
+
     // Nếu là Apple Pay & Google Wallet: Kích hoạt flow 1-chạm Face ID
     if (selectedMethod === "APPLE_PAY") {
       triggerBiometric("APPLE_PAY");
@@ -299,16 +496,25 @@ function CheckoutContent() {
     await executeBackendPayment();
   };
 
-  // Tính toán số liệu phân tách chi phí
+  // Tính toán số liệu phân tách chi phí đồng bộ 100% với Giỏ hàng (Cart)
   const totalItemCount = useMemo(() => {
     if (!order?.items) return 0;
     return order.items.reduce((sum, item) => sum + item.quantity, 0);
   }, [order]);
 
-  const rawTotal = order?.totalAmount || 0;
-  const discountAmount = Math.round(rawTotal * 0.15);
-  const subtotalBeforeDiscount = rawTotal + discountAmount;
-  const loyaltyPoints = Math.floor(rawTotal / 1000);
+  const subtotal = useMemo(() => {
+    if (!order?.items || order.items.length === 0) return order?.totalAmount || 0;
+    return order.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+  }, [order]);
+
+  const discountAmount = order?.discountAmount ?? 0;
+  const discountCode = order?.discountCode ?? null;
+  const afterDiscount = Math.max(0, subtotal - discountAmount);
+  // Thuế VAT 8% áp dụng vào giá tạm tính
+  const vat = Math.floor(afterDiscount * 0.08);
+  // Làm tròn xuống hàng nghìn VNĐ (ví dụ 144.720đ -> 144.000đ)
+  const totalAmount = order?.totalAmount ?? (Math.floor((afterDiscount + vat) / 1000) * 1000);
+  const loyaltyPoints = Math.floor(totalAmount / 1000);
 
   const getProductImage = (productId: number) => {
     const found = DEFAULT_PRODUCTS.find((p) => p.id === productId);
@@ -416,6 +622,89 @@ function CheckoutContent() {
           </div>
         )}
 
+        {/* ── Banner đếm ngược 5 phút tự hủy đơn và hoàn kho ── */}
+        {!loadingOrder && order && order.status === "PENDING" && checkoutRemaining !== null && (
+          <div
+            className={`mb-6 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs transition-all ${
+              checkoutRemaining <= 60
+                ? "bg-red-50 border border-red-200 text-red-950 animate-pulse"
+                : "bg-amber-50/90 border border-amber-200 text-amber-950"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                  checkoutRemaining <= 60
+                    ? "bg-red-100 text-red-700"
+                    : "bg-amber-100 text-amber-800"
+                }`}
+              >
+                <span className="material-symbols-outlined text-xl">
+                  {checkoutRemaining <= 60 ? "alarm" : "timer"}
+                </span>
+              </div>
+              <div>
+                <p className="text-sm font-bold">
+                  {checkoutRemaining > 0
+                    ? "Đang giữ chỗ nguyên liệu tại quầy Barista (5 phút)"
+                    : "Đơn hàng đã hết hạn thanh toán (quá 5 phút)"}
+                </p>
+                <p className="text-xs opacity-80 mt-0.5">
+                  {checkoutRemaining > 0
+                    ? `Vui lòng hoàn tất thanh toán trước khi hết giờ. Nếu quá 5 phút, hệ thống sẽ tự động hủy đơn #${order.id} và hoàn trả nguyên liệu về kho.`
+                    : "Toàn bộ nguyên liệu đã được tự động hoàn trả về kho. Vui lòng quay lại tạo đơn mới."}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+              {checkoutRemaining > 0 ? (
+                <div
+                  className={`font-mono text-base font-extrabold px-4 py-2 rounded-xl border tracking-wider ${
+                    checkoutRemaining <= 60
+                      ? "bg-red-100 text-red-700 border-red-300"
+                      : "bg-amber-100 text-amber-900 border-amber-300"
+                  }`}
+                >
+                  {String(Math.floor(checkoutRemaining / 60)).padStart(2, "0")}:
+                  {String(checkoutRemaining % 60).padStart(2, "0")}
+                </div>
+              ) : (
+                <Link
+                  href="/cart"
+                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-all shadow-xs"
+                >
+                  Quay lại Giỏ hàng
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Thông báo nếu đơn đã bị CANCELLED ── */}
+        {!loadingOrder && order && order.status === "CANCELLED" && (
+          <div className="mb-6 rounded-2xl bg-red-50 border border-red-200 p-5 text-red-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0 text-red-700">
+                <span className="material-symbols-outlined text-xl">cancel</span>
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-red-900">
+                  Đơn hàng #BL-{order.id} đã bị hủy hoặc hết hạn thanh toán
+                </h3>
+                <p className="text-xs text-red-700/80 mt-0.5">
+                  Toàn bộ nguyên liệu đã được hoàn trả về kho Barista. Không thể tiếp tục thanh toán cho đơn này.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/cart"
+              className="px-4 py-2 rounded-xl bg-red-700 hover:bg-red-800 text-white font-bold text-xs shrink-0 transition-all shadow-xs"
+            >
+              Quay lại Giỏ hàng
+            </Link>
+          </div>
+        )}
+
         {/* ── Hai Cột Chính: Bám Sát Bản Thiết Kế Google Stitch ── */}
         {!loadingOrder && order && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -459,81 +748,229 @@ function CheckoutContent() {
               </div>
 
               {/* 3. Danh sách món trong đơn hàng: Bo bọc container theo chuẩn Google Stitch */}
-              <div className="bg-[#F7F3EE] rounded-2xl p-3 border border-[#EDE6DC] flex flex-col gap-2.5 max-h-[300px] overflow-y-auto">
-                {order.items?.map((item) => (
-                  <div
-                    key={item.id}
-                    className="bg-white rounded-xl p-2.5 border border-[#EDE7DE] shadow-2xs flex items-center gap-3"
-                  >
-                    {/* Thumbnail món */}
-                    <div className="relative w-13 h-13 rounded-lg overflow-hidden bg-[#EDE7E3] shrink-0 border border-stone-100">
-                      <Image
-                        src={getProductImage(item.productId)}
-                        alt={item.productName}
-                        fill
-                        unoptimized
-                        sizes="52px"
-                        className="object-cover"
-                      />
-                    </div>
+              <div className="bg-[#F7F3EE] rounded-2xl p-3 border border-[#EDE6DC] flex flex-col gap-2.5 max-h-[380px] overflow-y-auto">
+                {order.items?.map((item, idx) => {
+                  const customization =
+                    customizationsMap[`idx_${idx}`] ||
+                    customizationsMap[`prod_${item.productId}`];
 
-                    {/* Chi tiết tên, size, topping */}
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-xs md:text-sm text-[#1A120B] truncate">
-                        {item.productName}
-                      </h4>
-                      <p className="text-[11px] text-[#827470] truncate mt-0.5">
-                        {`Size ${item.size} • ${item.toppings?.length ? item.toppings.join(", ") : "Nguyên bản"
-                          }`.normalize("NFC")}
+                  const isBakery =
+                    customization?.isBakery ??
+                    isBakeryProduct({ name: item.productName });
+
+                  const isHot =
+                    customization?.temperature === "HOT" ||
+                    customization?.temp?.toLowerCase() === "hot" ||
+                    item.productName.toLowerCase().includes("hot") ||
+                    item.productName.toLowerCase().includes("nóng");
+
+                  const isWarm =
+                    customization?.servingStyle === "Hâm nóng" ||
+                    customization?.servingStyle === "Hâm nóng giòn" ||
+                    (!customization?.servingStyle && isHot);
+
+                  const iceLevel =
+                    isHot || isBakery
+                      ? undefined
+                      : customization?.iceLevel || "100% đá";
+
+                  const sugarLevel = isBakery
+                    ? undefined
+                    : customization?.sugarLevel || "100% đường";
+
+                  const effectiveToppings =
+                    item.toppings && item.toppings.length > 0
+                      ? item.toppings
+                      : customization?.toppings && customization.toppings.length > 0
+                      ? customization.toppings
+                      : [];
+
+                  return (
+                    <div
+                      key={item.id || idx}
+                      className="bg-white rounded-xl p-3 border border-[#EDE7DE] shadow-2xs flex items-start gap-3 transition-colors hover:border-[#E0D7CC]"
+                    >
+                      {/* Thumbnail món */}
+                      <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden bg-[#EDE7E3] shrink-0 border border-stone-100 mt-0.5">
+                        <Image
+                          src={getItemImage(item)}
+                          alt={item.productName}
+                          fill
+                          unoptimized
+                          sizes="64px"
+                          className="object-cover"
+                        />
+                      </div>
+
+                      {/* Chi tiết tên, tùy chọn, toppings, ghi chú */}
+                      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                        {/* Hàng trên: Tên món + Thành tiền */}
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="font-bold text-xs md:text-sm text-[#1A120B] leading-snug">
+                            {item.productName}
+                          </h4>
+                          <span className="font-sans font-bold text-xs md:text-sm text-[#1A120B] shrink-0 tabular-nums">
+                            {vnd(item.unitPrice * item.quantity)}
+                          </span>
+                        </div>
+
+                        {/* Dòng 1: Tùy chọn cơ bản (Kích thước, Nhiệt độ, Đá, Đường hoặc Phục vụ bánh) */}
+                        <div className="flex flex-wrap items-center gap-1">
+                          {isBakery ? (
+                            <>
+                              {isWarm ? (
+                                <AttributeBadge>
+                                  <Flame size={11} className="text-stone-900" strokeWidth={2.2} />
+                                  <span>{"Hâm nóng".normalize("NFC")}</span>
+                                </AttributeBadge>
+                              ) : (
+                                <AttributeBadge>
+                                  <Snowflake size={11} className="text-stone-900" strokeWidth={2.2} />
+                                  <span>{"Dùng ngay".normalize("NFC")}</span>
+                                </AttributeBadge>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <AttributeBadge>Size {item.size || "M"}</AttributeBadge>
+                              {isHot ? (
+                                <AttributeBadge>
+                                  <Flame size={11} className="text-stone-900" strokeWidth={2.2} />
+                                  <span>{"Uống Nóng".normalize("NFC")}</span>
+                                </AttributeBadge>
+                              ) : (
+                                <AttributeBadge>
+                                  <Snowflake size={11} className="text-stone-900" strokeWidth={2.2} />
+                                  <span>{"Uống Lạnh".normalize("NFC")}</span>
+                                </AttributeBadge>
+                              )}
+                              {!isHot && (
+                                <AttributeBadge>
+                                  <span>{formatIceLevel(iceLevel)}</span>
+                                </AttributeBadge>
+                              )}
+                              <AttributeBadge>
+                                <span>{formatSugarLevel(sugarLevel)}</span>
+                              </AttributeBadge>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Dòng 2: Topping / Món ăn kèm (Cứ 2 topping xuống 1 dòng) */}
+                        {effectiveToppings.length > 0 && (
+                          <div className="flex flex-col gap-1 pt-0.5">
+                            {chunkArray(effectiveToppings, 2).map((pair, pIdx) => (
+                              <div key={pIdx} className="flex flex-wrap items-center gap-1">
+                                {pair.map((t) => (
+                                  <ToppingBadge key={t}>
+                                    <span className="text-[10px] font-extrabold">+</span>
+                                    <span>{t}</span>
+                                  </ToppingBadge>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Dòng 3: Ghi chú nếu có */}
+                        {customization?.notes && (
+                          <p className="text-[11px] text-[#827470] italic pt-0.5 leading-tight">
+                            <span className="not-italic font-semibold text-[#504440]">
+                              {"Ghi chú:".normalize("NFC")}
+                            </span>{" "}
+                            {customization.notes}
+                          </p>
+                        )}
+
+                        {/* Dòng 4: Số lượng badge */}
+                        <div className="pt-0.5">
+                          <span className="inline-block text-[10px] font-bold text-stone-600 bg-[#F5EFEB] px-2 py-0.5 rounded">
+                            {`SL: ${String(item.quantity).padStart(2, "0")} ${isBakery ? "phần" : "ly"}`}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 4. Khối mã giảm giá (Voucher Card) - Chỉ hiển thị khi có mã giảm giá thực tế */}
+              {discountAmount > 0 && (
+                <div className="bg-[#FAF6F0] border border-[#EFE8DD] rounded-xl p-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-7 h-7 rounded-lg bg-[#F5EFEB] flex items-center justify-center text-[#845326] shrink-0">
+                      <Tag size={13} strokeWidth={2.2} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-xs text-[#1A120B] truncate">
+                        {`Ưu đãi: ${discountCode || "Giảm giá"}`.normalize("NFC")}
                       </p>
-                      <span className="inline-block mt-1 text-[10px] font-semibold text-stone-600 bg-[#F5EFEB] px-2 py-0.5 rounded">
-                        {`SL: ${String(item.quantity).padStart(2, "0")}`}
-                      </span>
+                      <p className="text-[10px] text-stone-500 truncate">
+                        {"Ưu đãi đã được áp dụng vào đơn hàng".normalize("NFC")}
+                      </p>
                     </div>
-
-                    {/* Đơn giá thành tiền: font-sans không chân chuẩn Stitch */}
-                    <span className="font-sans font-bold text-xs md:text-sm text-[#1A120B] shrink-0 tabular-nums pr-1">
-                      {vnd(item.unitPrice * item.quantity)}
-                    </span>
                   </div>
-                ))}
-              </div>
-
-              {/* 4. Khối mã giảm giá (Voucher Card) */}
-              <div className="bg-[#FAF6F0] border border-[#EFE8DD] rounded-xl p-3 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-7 h-7 rounded-lg bg-[#F5EFEB] flex items-center justify-center text-[#845326] shrink-0">
-                    <Tag size={13} strokeWidth={2.2} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-bold text-xs text-[#1A120B] truncate">
-                      {"Mã BREWCOZY (-15%)".normalize("NFC")}
-                    </p>
-                    <p className="text-[10px] text-stone-500 truncate">
-                      {"Ưu đãi dành cho khách hàng thân thiết".normalize("NFC")}
-                    </p>
-                  </div>
+                  <span className="bg-[#EFE9E0] text-[#654E44] text-[10px] font-semibold px-2.5 py-1 rounded-full shrink-0">
+                    {"Đã áp dụng".normalize("NFC")}
+                  </span>
                 </div>
-                <span className="bg-[#EFE9E0] text-[#654E44] text-[10px] font-semibold px-2.5 py-1 rounded-full shrink-0">
-                  {"Đã áp dụng".normalize("NFC")}
-                </span>
-              </div>
+              )}
 
-              {/* 5. Bảng phân tích giá (ĐÃ XÓA PHÍ BAO BÌ SINH HỌC) */}
-              <div className="flex flex-col gap-2 pt-2 border-t border-[#F2ECE4] text-xs">
+              {/* 5. Tóm tắt thanh toán - Đồng bộ 100% với Giỏ hàng */}
+              <div className="flex flex-col gap-2.5 pt-3 border-t border-[#F2ECE4] text-xs font-body">
+                <div className="flex items-center justify-between pb-1">
+                  <span className="font-headline text-[13px] font-bold text-[#1d1b19]">
+                    {"Tóm tắt thanh toán".normalize("NFC")}
+                  </span>
+                </div>
+
+                {/* Tạm tính */}
                 <div className="flex justify-between text-stone-600">
                   <span>
-                    {`Tạm tính (${totalItemCount} phần uống)`.normalize("NFC")}
+                    {`Tạm tính (${totalItemCount} món)`.normalize("NFC")}
                   </span>
                   <span className="font-sans font-semibold text-stone-900 tabular-nums">
-                    {vnd(subtotalBeforeDiscount)}
+                    {vnd(subtotal)}
                   </span>
                 </div>
 
-                <div className="flex justify-between text-[#B45309] font-medium">
-                  <span>{"Giảm giá thành viên (BREWCOZY)".normalize("NFC")}</span>
-                  <span className="font-sans font-bold tabular-nums">
-                    -{vnd(discountAmount)}
+                {/* Ưu đãi Giờ vàng / Khuyến mại */}
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-[#B45309] font-semibold">
+                    <span className="flex items-center gap-1">
+                      {"Ưu đãi Giờ vàng / Khuyến mại".normalize("NFC")}
+                      {discountCode && (
+                        <span className="text-[10px] bg-[#fef3c7] text-[#92400e] px-1.5 py-0.2 rounded font-mono">
+                          {discountCode}
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-sans font-bold tabular-nums">
+                      -{vnd(discountAmount)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Phí ly & đóng gói Eco */}
+                <div className="flex justify-between text-stone-600">
+                  <span>{"Phí ly & đóng gói Eco".normalize("NFC")}</span>
+                  <span className="text-[#2c1810] font-semibold">
+                    {"0đ (Miễn phí)".normalize("NFC")}
+                  </span>
+                </div>
+
+                {/* Thuế VAT (8%) */}
+                <div className="flex justify-between text-stone-600">
+                  <span>{"Thuế VAT (8%)".normalize("NFC")}</span>
+                  <span className="text-stone-700 font-medium tabular-nums">{vnd(vat)}</span>
+                </div>
+
+                {/* Tích luỹ hạt thưởng */}
+                <div className="flex justify-between items-center pt-1 border-t border-dashed border-[#EAE2D5]">
+                  <span className="text-stone-600">{"Tích luỹ hạt thưởng".normalize("NFC")}</span>
+                  <span className="inline-flex items-center gap-1.5 text-[#b45309] font-bold text-[12px]">
+                    <Sparkles size={13} className="text-amber-500 fill-amber-400" />
+                    <span>+{loyaltyPoints} {"Hạt Vàng".normalize("NFC")}</span>
                   </span>
                 </div>
               </div>
@@ -541,11 +978,18 @@ function CheckoutContent() {
               {/* 6. Khối Tổng thanh toán nổi bật: bg-[#F5EDE2] font-sans cho số tiền */}
               <div className="bg-[#F5EDE2] rounded-2xl p-4 md:p-5 flex flex-col gap-2 border border-[#EBE1D3]">
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-xs font-bold text-stone-700 uppercase tracking-wide">
-                    {"Tổng thanh toán:".normalize("NFC")}
-                  </span>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-stone-700 uppercase tracking-wide block">
+                        {"Tổng thanh toán:".normalize("NFC")}
+                      </span>
+                      <span className="text-[11px] text-stone-500 font-normal">
+                        {"(đã làm tròn)".normalize("NFC")}
+                      </span>
+                    </div>
+                  </div>
                   <span className="font-sans text-2xl md:text-3xl font-bold text-[#1A120B] tabular-nums tracking-tight">
-                    {vnd(order.totalAmount)}
+                    {vnd(totalAmount)}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-[#845326] font-semibold pt-1 border-t border-[#E5DACB]">
@@ -1151,9 +1595,15 @@ function CheckoutContent() {
                   type="button"
                   id="confirmPaymentBtn"
                   onClick={handlePayment}
-                  disabled={isProcessing}
+                  disabled={
+                    isProcessing ||
+                    order.status === "CANCELLED" ||
+                    (checkoutRemaining !== null && checkoutRemaining <= 0)
+                  }
                   className={`w-full py-3.5 px-6 rounded-full font-bold text-base transition-all duration-200 flex items-center justify-center gap-2 shadow-md active:scale-[0.99] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${simulateFailure
                       ? "bg-red-600 hover:bg-red-700 text-white"
+                      : order.status === "CANCELLED" || (checkoutRemaining !== null && checkoutRemaining <= 0)
+                      ? "bg-stone-400 text-stone-100"
                       : "bg-[#1A120B] hover:bg-black text-white"
                     }`}
                 >
@@ -1161,6 +1611,11 @@ function CheckoutContent() {
                     <>
                       <RefreshCw size={18} className="animate-spin" />
                       <span>{"Đang xử lý giao dịch...".normalize("NFC")}</span>
+                    </>
+                  ) : order.status === "CANCELLED" || (checkoutRemaining !== null && checkoutRemaining <= 0) ? (
+                    <>
+                      <XCircle size={18} />
+                      <span>{"Đơn hàng đã hết hạn (quá 5 phút)".normalize("NFC")}</span>
                     </>
                   ) : (
                     <>

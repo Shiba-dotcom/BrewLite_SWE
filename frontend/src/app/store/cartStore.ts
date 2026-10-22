@@ -17,19 +17,66 @@ export interface CartItem {
   name: string;
   /** unit price (after size/topping adjustments) */
   price: number;
-  temp: string;
+  /** Legacy temperature identifier (e.g. 'hot' | 'iced') */
+  temp?: string;
+  /** Normalized temperature ('HOT' | 'COLD') */
+  temperature?: "HOT" | "COLD";
   quantity: number;
   size?: string;
+  iceLevel?: string;
+  sugarLevel?: string;
   toppings?: string[];
   notes?: string;
   /** thumbnail URL for cart display */
   imageUrl?: string | null;
+  /** Flag for bakery/pastry products */
+  isBakery?: boolean;
+  /** Serving style for bakery: 'Hâm nóng' | 'Dùng ngay' */
+  servingStyle?: string;
+}
+
+/** Check if product is bakery */
+export function isBakeryProduct(product?: { name?: string; category?: string } | null): boolean {
+  if (!product) return false;
+  if (product.category === "bakery") return true;
+  const n = (product.name || "").toLowerCase();
+  return (
+    n.includes("bánh") ||
+    n.includes("banh") ||
+    n.includes("pain") ||
+    n.includes("chocolat") ||
+    n.includes("cheesecake") ||
+    n.includes("tiramisu") ||
+    n.includes("croissant") ||
+    n.includes("cruffin") ||
+    n.includes("danish") ||
+    n.includes("muffin")
+  );
 }
 
 /** Unique key used to detect duplicate cart entries */
-function itemKey(item: Pick<CartItem, "id" | "size" | "temp" | "toppings">): string {
+function itemKey(
+  item: Pick<
+    CartItem,
+    "id" | "name" | "size" | "temp" | "temperature" | "iceLevel" | "sugarLevel" | "toppings" | "isBakery" | "servingStyle"
+  >
+): string {
   const toppings = [...(item.toppings ?? [])].sort().join(",");
-  return `${item.id}|${item.size ?? "M"}|${item.temp}|${toppings}`;
+  const isBakery = item.isBakery || isBakeryProduct(item);
+  if (isBakery) {
+    const serving =
+      item.servingStyle ||
+      (item.temperature === "HOT" || item.temp?.toLowerCase() === "hot"
+        ? "Hâm nóng"
+        : "Dùng ngay");
+    return `${item.id}|BAKERY|${serving}|${toppings}`;
+  }
+  const tempVal =
+    item.temperature ??
+    (item.temp?.toLowerCase() === "hot" ? "HOT" : "COLD");
+  const ice = item.iceLevel ?? "";
+  const sugar = item.sugarLevel ?? "";
+  return `${item.id}|${item.size ?? "M"}|${tempVal}|${ice}|${sugar}|${toppings}`;
 }
 
 interface CartState {
@@ -53,7 +100,12 @@ interface CartState {
   /** Grand total in VND */
   cartTotal: () => number;
   /** Get the composite key or cartItemId for any CartItem */
-  getKey: (item: Pick<CartItem, "id" | "size" | "temp" | "toppings" | "cartItemId">) => string;
+  getKey: (
+    item: Pick<
+      CartItem,
+      "id" | "name" | "size" | "temp" | "temperature" | "iceLevel" | "sugarLevel" | "toppings" | "isBakery" | "servingStyle" | "cartItemId"
+    >
+  ) => string;
 }
 
 export const useCartStore = create<CartState>()(
@@ -62,7 +114,34 @@ export const useCartStore = create<CartState>()(
       items: [],
 
       addItem: (newItem) => {
-        const key = itemKey(newItem);
+        const isBakery = newItem.isBakery || isBakeryProduct(newItem);
+        const isHot =
+          newItem.servingStyle === "Hâm nóng" ||
+          newItem.servingStyle === "Hâm nóng giòn" ||
+          newItem.temperature === "HOT" ||
+          newItem.temp?.toLowerCase() === "hot";
+        const temperature: "HOT" | "COLD" = isHot ? "HOT" : "COLD";
+        const temp = newItem.temp || (isHot ? "hot" : "iced");
+        const servingStyle =
+          newItem.servingStyle ||
+          (isBakery ? (isHot ? "Hâm nóng" : "Dùng ngay") : undefined);
+        const iceLevel =
+          isBakery || isHot ? undefined : newItem.iceLevel || "100% đá";
+        const sugarLevel = isBakery ? undefined : newItem.sugarLevel || "100% đường";
+        const size = isBakery ? undefined : newItem.size || "M";
+
+        const resolvedItem: CartItem = {
+          ...newItem,
+          temp,
+          temperature,
+          servingStyle,
+          isBakery,
+          size,
+          iceLevel,
+          sugarLevel,
+        };
+
+        const key = itemKey(resolvedItem);
         set((state) => {
           const existingIndex = state.items.findIndex(
             (i) => itemKey(i) === key
@@ -76,9 +155,9 @@ export const useCartStore = create<CartState>()(
             return { items: updated };
           }
           const cartItemId =
-            newItem.cartItemId ||
+            resolvedItem.cartItemId ||
             `item_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-          return { items: [...state.items, { ...newItem, cartItemId }] };
+          return { items: [...state.items, { ...resolvedItem, cartItemId }] };
         });
       },
 
@@ -89,11 +168,31 @@ export const useCartStore = create<CartState>()(
               (i.cartItemId && i.cartItemId === cartItemId) ||
               itemKey(i) === cartItemId;
             if (!match) return i;
-            return {
+
+            const merged: CartItem = {
               ...i,
               ...updatedData,
               cartItemId: i.cartItemId || cartItemId,
             };
+
+            if (updatedData.temperature && !updatedData.temp) {
+              merged.temp = updatedData.temperature === "HOT" ? "hot" : "iced";
+            } else if (updatedData.temp && !updatedData.temperature) {
+              merged.temperature =
+                updatedData.temp.toLowerCase() === "hot" ? "HOT" : "COLD";
+            }
+
+            if (merged.temperature === "HOT") {
+              merged.iceLevel = undefined;
+            }
+
+            if (merged.isBakery) {
+              merged.iceLevel = undefined;
+              merged.sugarLevel = undefined;
+              merged.size = undefined;
+            }
+
+            return merged;
           }),
         }));
       },
