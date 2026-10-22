@@ -269,6 +269,39 @@ async function main() {
       minThreshold: 5,
       costPerUnit: 24000, // 24.000đ / 1 phần
     },
+    // 4 món ăn kèm bánh ngọt (Pastry Add-ons)
+    {
+      code: 'ING_BUTTER',
+      name: 'Bơ lạt Anchor (viên 10g)',
+      unit: 'viên',
+      stock: 100,
+      minThreshold: 20,
+      costPerUnit: 2500, // 2.500đ / 1 viên bơ
+    },
+    {
+      code: 'ING_CREAM_CHEESE',
+      name: 'Phô mai kem tươi Anchor (hộp 30g)',
+      unit: 'hộp',
+      stock: 80,
+      minThreshold: 15,
+      costPerUnit: 5000, // 5.000đ / 1 hộp phô mai kem
+    },
+    {
+      code: 'ING_JAM_STRAWBERRY',
+      name: 'Mứt dâu tây Đà Lạt (hũ 30g)',
+      unit: 'hũ',
+      stock: 80,
+      minThreshold: 15,
+      costPerUnit: 4000, // 4.000đ / 1 hũ mứt dâu
+    },
+    {
+      code: 'ING_CHOCO_SAUCE',
+      name: 'Xốt sô-cô-la Bỉ đun chảy',
+      unit: 'ml',
+      stock: 2000,
+      minThreshold: 200,
+      costPerUnit: 120, // 120đ / 1 ml (30ml = 3.600đ chi phí)
+    },
   ];
 
   console.log('Seeding ingredients...');
@@ -444,6 +477,39 @@ async function main() {
       price: 12000,
       ingCode: 'ING_ARABICA',
       amount: 18,
+    },
+    // 4 món ăn kèm bánh ngọt (Pastry Add-ons)
+    {
+      toppingId: 'bakery_butter',
+      toppingName: 'Bơ lạt Anchor',
+      subtext: 'Bơ New Zealand thơm béo ngậy',
+      price: 5000,
+      ingCode: 'ING_BUTTER',
+      amount: 1,
+    },
+    {
+      toppingId: 'bakery_cream_cheese',
+      toppingName: 'Phô mai kem',
+      subtext: 'Phô mai tươi chua nhẹ, ngậy béo',
+      price: 10000,
+      ingCode: 'ING_CREAM_CHEESE',
+      amount: 1,
+    },
+    {
+      toppingId: 'bakery_jam',
+      toppingName: 'Mứt dâu tây',
+      subtext: 'Dâu tây Đà Lạt nguyên quả chua ngọt',
+      price: 8000,
+      ingCode: 'ING_JAM_STRAWBERRY',
+      amount: 1,
+    },
+    {
+      toppingId: 'bakery_choco',
+      toppingName: 'Xốt sô-cô-la ấm',
+      subtext: 'Socola Bỉ đun chảy đậm đà',
+      price: 10000,
+      ingCode: 'ING_CHOCO_SAUCE',
+      amount: 30,
     },
   ];
 

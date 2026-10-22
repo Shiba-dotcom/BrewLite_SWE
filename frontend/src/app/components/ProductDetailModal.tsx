@@ -134,9 +134,10 @@ export default function ProductDetailModal({
   // State for customization options
   const isBakery = useMemo(() => isBakeryProduct(product), [product]);
   const [availableToppings, setAvailableToppings] = useState<ToppingItem[]>(AVAILABLE_TOPPINGS);
+  const [availableBakeryToppings, setAvailableBakeryToppings] = useState<ToppingItem[]>(AVAILABLE_BAKERY_TOPPINGS);
   const currentAvailableToppings = useMemo(() => {
-    return isBakery ? AVAILABLE_BAKERY_TOPPINGS : availableToppings;
-  }, [isBakery, availableToppings]);
+    return isBakery ? availableBakeryToppings : availableToppings;
+  }, [isBakery, availableBakeryToppings, availableToppings]);
 
   const [selectedSize, setSelectedSize] = useState<"S" | "M" | "L">("M");
   const [temperature, setTemperature] = useState<"iced" | "hot">("iced");
@@ -168,14 +169,16 @@ export default function ProductDetailModal({
           });
         }
         if (Array.isArray(data.toppings) && data.toppings.length > 0) {
-          setAvailableToppings(
-            data.toppings.map((t: { id: string; name?: string; toppingName?: string; subtext?: string; price: number }) => ({
-              id: t.id,
-              name: (t.name || t.toppingName || "").normalize("NFC"),
-              subtext: (t.subtext || "Topping đặc biệt").normalize("NFC"),
-              price: Number(t.price ?? 8000),
-            }))
-          );
+          const allLoadedToppings = data.toppings.map((t: { id: string; name?: string; toppingName?: string; subtext?: string; price: number }) => ({
+            id: t.id,
+            name: (t.name || t.toppingName || "").normalize("NFC"),
+            subtext: (t.subtext || "Topping đặc biệt").normalize("NFC"),
+            price: Number(t.price ?? 8000),
+          }));
+          const drinks = allLoadedToppings.filter((t: ToppingItem) => !t.id.startsWith("bakery_"));
+          const bakery = allLoadedToppings.filter((t: ToppingItem) => t.id.startsWith("bakery_"));
+          if (drinks.length > 0) setAvailableToppings(drinks);
+          if (bakery.length > 0) setAvailableBakeryToppings(bakery);
         }
       })
       .catch(() => {
@@ -767,7 +770,7 @@ export default function ProductDetailModal({
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="bakery-toppings-container">
-                    {AVAILABLE_BAKERY_TOPPINGS.map((topping) => {
+                    {availableBakeryToppings.map((topping) => {
                       const isChecked = selectedToppingIds.includes(topping.id);
 
                       return (
