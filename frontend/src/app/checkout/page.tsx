@@ -934,13 +934,13 @@ function CheckoutContent() {
                   </span>
                 </div>
 
-                {/* Ưu đãi Giờ vàng / Khuyến mại */}
+                {/* Khuyến mãi */}
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-[#B45309] font-semibold">
-                    <span className="flex items-center gap-1">
-                      {"Ưu đãi Giờ vàng / Khuyến mại".normalize("NFC")}
+                    <span className="flex items-center gap-1.5 leading-none">
+                      <span className="leading-none">{"Khuyến mãi".normalize("NFC")}</span>
                       {discountCode && (
-                        <span className="text-[10px] bg-[#fef3c7] text-[#92400e] px-1.5 py-0.2 rounded font-mono">
+                        <span className="inline-flex items-center justify-center text-[10px] bg-[#fef3c7] text-[#92400e] px-1.5 py-0.5 rounded font-mono font-bold leading-none border border-[#fde68a]">
                           {discountCode}
                         </span>
                       )}

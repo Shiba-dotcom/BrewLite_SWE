@@ -133,9 +133,16 @@ export default function ProductDetailModal({
 }: ProductDetailModalProps) {
   // State for customization options
   const isBakery = useMemo(() => isBakeryProduct(product), [product]);
+  const [availableToppings, setAvailableToppings] = useState<ToppingItem[]>(AVAILABLE_TOPPINGS);
+  const [availableBakeryToppings, setAvailableBakeryToppings] = useState<ToppingItem[]>(AVAILABLE_BAKERY_TOPPINGS);
+  const [bakeryServingStyles, setBakeryServingStyles] = useState<Array<{ id: string; name: string; desc: string; icon: string }>>([
+    { id: "hot", name: "Hâm nóng", desc: "Nướng nóng thơm lừng, xốp giòn chuẩn vị.", icon: "local_fire_department" },
+    { id: "iced", name: "Dùng ngay", desc: "Bảo quản trong quầy, giữ độ mềm tự nhiên trong nhiệt độ phòng.", icon: "ac_unit" },
+  ]);
+
   const currentAvailableToppings = useMemo(() => {
-    return isBakery ? AVAILABLE_BAKERY_TOPPINGS : AVAILABLE_TOPPINGS;
-  }, [isBakery]);
+    return isBakery ? availableBakeryToppings : availableToppings;
+  }, [isBakery, availableBakeryToppings, availableToppings]);
 
   const [selectedSize, setSelectedSize] = useState<"S" | "M" | "L">("M");
   const [temperature, setTemperature] = useState<"iced" | "hot">("iced");
@@ -147,6 +154,53 @@ export default function ProductDetailModal({
   const [isFavorite, setIsFavorite] = useState<boolean>(false);
   const [showToast, setShowToast] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string>("");
+  const [globalSizePricing, setGlobalSizePricing] = useState<{ sizeS: number; sizeM: number; sizeL: number }>({
+    sizeS: 0,
+    sizeM: 5000,
+    sizeL: 10000,
+  });
+
+  useEffect(() => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    fetch(`${apiBase}/inventory/pricing-config`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data) return;
+        if (data.sizePricing) {
+          setGlobalSizePricing({
+            sizeS: Number(data.sizePricing.sizeS ?? 0),
+            sizeM: Number(data.sizePricing.sizeM ?? 5000),
+            sizeL: Number(data.sizePricing.sizeL ?? 10000),
+          });
+        }
+        if (Array.isArray(data.toppings) && data.toppings.length > 0) {
+          setAvailableToppings(
+            data.toppings.map((t: { id: string; name?: string; toppingName?: string; subtext?: string; price: number }) => ({
+              id: t.id,
+              name: (t.name || t.toppingName || "").normalize("NFC"),
+              subtext: (t.subtext || "Topping đặc biệt").normalize("NFC"),
+              price: Number(t.price ?? 8000),
+            }))
+          );
+        }
+        if (Array.isArray(data.bakeryToppings) && data.bakeryToppings.length > 0) {
+          setAvailableBakeryToppings(
+            data.bakeryToppings.map((t: { id: string; name?: string; toppingName?: string; subtext?: string; price: number }) => ({
+              id: t.id,
+              name: (t.name || t.toppingName || "").normalize("NFC"),
+              subtext: (t.subtext || "Món ăn kèm thơm ngon").normalize("NFC"),
+              price: Number(t.price ?? 8000),
+            }))
+          );
+        }
+        if (Array.isArray(data.bakeryServingStyles) && data.bakeryServingStyles.length > 0) {
+          setBakeryServingStyles(data.bakeryServingStyles);
+        }
+      })
+      .catch(() => {
+        // Fallback to static defaults when backend is offline
+      });
+  }, [isOpen]);
 
   // Initialize or reset defaults when a new product or initialCustomization is provided
   useEffect(() => {
@@ -223,11 +277,20 @@ export default function ProductDetailModal({
   }
 
   const sizeConfig: Record<"S" | "M" | "L", SizeItemConfig> = useMemo(() => {
+    const extraS = globalSizePricing.sizeS;
+    const extraM =
+      product?.sizeUpchargeM !== null && product?.sizeUpchargeM !== undefined
+        ? Number(product.sizeUpchargeM)
+        : globalSizePricing.sizeM;
+    const extraL =
+      product?.sizeUpchargeL !== null && product?.sizeUpchargeL !== undefined
+        ? Number(product.sizeUpchargeL)
+        : globalSizePricing.sizeL;
     return {
       S: {
         code: "S",
         label: "Nhỏ - 250ml".normalize("NFC"),
-        extra: 0,
+        extra: extraS,
         badgeText: "S",
         icon: "local_cafe",
         popular: false,
@@ -235,7 +298,7 @@ export default function ProductDetailModal({
       M: {
         code: "M",
         label: "Vừa - 350ml".normalize("NFC"),
-        extra: 5000,
+        extra: extraM,
         badgeText: "M",
         popular: true,
         icon: "local_cafe",
@@ -243,13 +306,13 @@ export default function ProductDetailModal({
       L: {
         code: "L",
         label: "Lớn - 500ml".normalize("NFC"),
-        extra: 10000,
+        extra: extraL,
         badgeText: "L",
         icon: "emoji_food_beverage",
         popular: false,
       },
     };
-  }, []);
+  }, [product, globalSizePricing]);
 
   const sizeExtraPrice = isBakery ? 0 : sizeConfig[selectedSize].extra;
 
@@ -636,73 +699,42 @@ export default function ProductDetailModal({
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="bakery-serving-group">
-                    <button
-                      type="button"
-                      onClick={() => setTemperature("hot")}
-                      className={`flex items-start gap-3 p-3.5 rounded-2xl transition-all text-left cursor-pointer ${temperature === "hot"
-                        ? "bg-[#2c1810] text-white shadow-md ring-2 ring-[#2c1810]"
-                        : "bg-[#f8f2ee] hover:bg-[#f3ede9] text-[#1d1b19] border border-[#2c1810]/10"
-                        }`}
-                    >
-                      <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${temperature === "hot"
-                          ? "bg-white/20 text-[#febc85]"
-                          : "bg-[#ede7e3] text-[#845326]"
+                    {bakeryServingStyles.map((style) => (
+                      <button
+                        key={style.id}
+                        type="button"
+                        onClick={() => setTemperature(style.id as "hot" | "iced")}
+                        className={`flex items-start gap-3 p-3.5 rounded-2xl transition-all text-left cursor-pointer ${temperature === style.id
+                          ? "bg-[#2c1810] text-white shadow-md ring-2 ring-[#2c1810]"
+                          : "bg-[#f8f2ee] hover:bg-[#f3ede9] text-[#1d1b19] border border-[#2c1810]/10"
                           }`}
                       >
-                        <span className="material-symbols-outlined text-xl">
-                          local_fire_department
-                        </span>
-                      </div>
-                      <div className="min-w-0">
-                        <span
-                          className={`block text-[14px] font-bold leading-tight ${temperature === "hot" ? "text-white" : "text-[#1d1b19]"
+                        <div
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${temperature === style.id
+                            ? "bg-white/20 text-[#febc85]"
+                            : "bg-[#ede7e3] text-[#845326]"
                             }`}
                         >
-                          {"Hâm nóng".normalize("NFC")}
-                        </span>
-                        <span
-                          className={`block text-[11px] mt-1 leading-normal ${temperature === "hot" ? "text-stone-300" : "text-[#827470]"
-                            }`}
-                        >
-                          {"Nướng nóng thơm lừng, xốp giòn chuẩn vị.".normalize("NFC")}
-                        </span>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setTemperature("iced")}
-                      className={`flex items-start gap-3 p-3.5 rounded-2xl transition-all text-left cursor-pointer ${temperature === "iced"
-                        ? "bg-[#2c1810] text-white shadow-md ring-2 ring-[#2c1810]"
-                        : "bg-[#f8f2ee] hover:bg-[#f3ede9] text-[#1d1b19] border border-[#2c1810]/10"
-                        }`}
-                    >
-                      <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${temperature === "iced"
-                          ? "bg-white/20 text-[#febc85]"
-                          : "bg-[#ede7e3] text-[#845326]"
-                          }`}
-                      >
-                        <span className="material-symbols-outlined text-xl">
-                          ac_unit
-                        </span>
-                      </div>
-                      <div className="min-w-0">
-                        <span
-                          className={`block text-[14px] font-bold leading-tight ${temperature === "iced" ? "text-white" : "text-[#1d1b19]"
-                            }`}
-                        >
-                          {"Dùng ngay".normalize("NFC")}
-                        </span>
-                        <span
-                          className={`block text-[11px] mt-1 leading-normal ${temperature === "iced" ? "text-stone-300" : "text-[#827470]"
-                            }`}
-                        >
-                          {"Bảo quản trong quầy, giữ độ mềm tự nhiên trong nhiệt độ phòng.".normalize("NFC")}
-                        </span>
-                      </div>
-                    </button>
+                          <span className="material-symbols-outlined text-xl">
+                            {style.icon}
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <span
+                            className={`block text-[14px] font-bold leading-tight ${temperature === style.id ? "text-white" : "text-[#1d1b19]"
+                              }`}
+                          >
+                            {style.name}
+                          </span>
+                          <span
+                            className={`block text-[11px] mt-1 leading-normal ${temperature === style.id ? "text-stone-300" : "text-[#827470]"
+                              }`}
+                          >
+                            {style.desc}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -723,7 +755,7 @@ export default function ProductDetailModal({
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="bakery-toppings-container">
-                    {AVAILABLE_BAKERY_TOPPINGS.map((topping) => {
+                    {availableBakeryToppings.map((topping) => {
                       const isChecked = selectedToppingIds.includes(topping.id);
 
                       return (
@@ -957,7 +989,7 @@ export default function ProductDetailModal({
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="toppings-container">
-                    {AVAILABLE_TOPPINGS.map((topping) => {
+                    {availableToppings.map((topping) => {
                       const isChecked = selectedToppingIds.includes(topping.id);
 
                       return (

@@ -975,7 +975,14 @@ function OrderConfirmationContent() {
                   </div>
                   {Boolean(order?.discountAmount && order.discountAmount > 0) && (
                     <div className="flex justify-between text-[#b45309] font-medium">
-                      <span>Ưu đãi / Giảm giá {order?.discountCode ? `(${order.discountCode})` : ""}</span>
+                      <span className="flex items-center gap-1.5 leading-none">
+                        <span className="leading-none">{"Khuyến mãi".normalize("NFC")}</span>
+                        {order?.discountCode && (
+                          <span className="inline-flex items-center justify-center text-[10px] bg-[#fef3c7] text-[#92400e] px-1.5 py-0.5 rounded font-mono font-bold leading-none border border-[#fde68a]">
+                            {order.discountCode}
+                          </span>
+                        )}
+                      </span>
                       <span className="font-bold">-{vnd(order?.discountAmount || 0)}</span>
                     </div>
                   )}

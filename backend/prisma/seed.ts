@@ -17,6 +17,8 @@ async function main() {
         'Chiết xuất từ hạt Robusta và Arabica rang đậm mộc, mang vị đắng êm sâu lắng, hậu vị thanh nhẹ và hương thơm nồng nàn nguyên bản.',
       imageUrl: '/images/products/ca-phe-den.png',
       basePrice: 29000,
+      category: 'vietnamese',
+      tag: 'Đậm vị',
     },
     {
       name: 'Cà phê Sữa',
@@ -24,6 +26,8 @@ async function main() {
         'Sự kết hợp kinh điển giữa cà phê pha phin truyền thống đậm đà và sữa đặc sánh mịn. Từng giọt cà phê loang tự nhiên qua đá viên tạo nên vị ngọt béo, đắng dịu hài hòa.',
       imageUrl: '/images/products/ca-phe-sua.png',
       basePrice: 35000,
+      category: 'vietnamese',
+      tag: 'Phổ biến',
     },
     {
       name: 'Cà phê Bạc Xỉu',
@@ -31,6 +35,8 @@ async function main() {
         'Dòng sữa tươi thanh béo quyện cùng chút sữa đặc ngọt dịu, điểm xuyết một lớp cà phê phin thơm nhẹ trên bề mặt, mang hương vị dịu êm, ngậy béo và dễ uống.',
       imageUrl: '/images/products/ca-phe-bac-xiu.png',
       basePrice: 39000,
+      category: 'vietnamese',
+      tag: 'Béo ngậy',
     },
     {
       name: 'Cà phê Muối',
@@ -38,6 +44,8 @@ async function main() {
         'Nền cà phê sữa đá đậm vị hòa quyện cùng lớp kem bọt muối biển sánh mịn, béo mặn bồng bềnh bên trên, rắc nhẹ bột cacao nguyên chất tạo điểm nhấn tròn vị.',
       imageUrl: '/images/products/ca-phe-muoi.png',
       basePrice: 42000,
+      category: 'vietnamese',
+      tag: 'Đặc sản',
     },
     {
       name: 'Iced Caramel Macchiato',
@@ -45,6 +53,8 @@ async function main() {
         'Cà phê espresso phân tầng tinh tế cùng sữa tươi mát lạnh và siro vani ngọt dịu, phủ lớp bọt sữa dày mịn đan xen những đường sốt caramel vàng óng thơm ngậy.',
       imageUrl: '/images/products/iced-caramel-macchiato.png',
       basePrice: 49000,
+      category: 'espresso',
+      tag: 'Signature',
     },
     {
       name: 'Matcha Latte Uji',
@@ -52,6 +62,8 @@ async function main() {
         'Bột trà xanh Uji cao cấp từ Nhật Bản được đánh bọt mịn màng, hòa cùng dòng sữa tươi béo nhẹ. Thức uống mang sắc xanh ngọc bích, vị chát thanh dịu và hậu ngọt êm ái.',
       imageUrl: '/images/products/matcha-latte.png',
       basePrice: 49000,
+      category: 'tea',
+      tag: 'Uji Kyoto',
     },
     {
       name: 'Trà Đào Cam Sả',
@@ -59,6 +71,8 @@ async function main() {
         'Nền trà đen ủ lạnh ngát hương sả tươi tự nhiên, kết hợp cùng vị chua ngọt sảng khoái của tép cam vàng tươi và miếng đào giòn mọng, giúp thanh nhiệt tức thì.',
       imageUrl: '/images/products/tra-dao-cam-sa.png',
       basePrice: 45000,
+      category: 'tea',
+      tag: 'Thanh mát',
     },
     {
       name: 'Bánh Pain au Chocolat',
@@ -66,6 +80,8 @@ async function main() {
         'Lớp vỏ bánh ngàn lớp xốp giòn ôm trọn hai thanh sô-cô-la đen đậm vị tan chảy ở giữa. Sự kết hợp hoàn hảo giữa độ giòn béo của bơ và vị đắng ngọt tinh tế.',
       imageUrl: '/images/products/pain-au-chocolat.png',
       basePrice: 39000,
+      category: 'bakery',
+      tag: 'Bơ Pháp',
     },
     {
       name: 'Basque Burnt Cheesecake',
@@ -73,6 +89,8 @@ async function main() {
         'Bánh phô mai nướng cháy xém bề mặt theo phong cách xứ Basque, đượm hương caramel nướng đặc trưng. Cốt bánh mềm ngậy, mịn tan và có hậu chua thanh nhẹ từ kem phô mai.',
       imageUrl: '/images/products/basque-burnt-cheesecake.png',
       basePrice: 45000,
+      category: 'bakery',
+      tag: 'Xứ Basque',
     },
     {
       name: 'Classic Tiramisu',
@@ -80,6 +98,8 @@ async function main() {
         'Cốt bánh ladyfinger mềm mại thấm đẫm cà phê espresso đậm đặc, xen kẽ các lớp kem phô mai mascarpone béo mịn và phủ bề mặt bằng lớp bột cacao thơm bùi, đắng nhẹ.',
       imageUrl: '/images/products/classic-tiramisu.png',
       basePrice: 49000,
+      category: 'bakery',
+      tag: 'Cổ điển Ý',
     },
   ];
 
@@ -95,32 +115,38 @@ async function main() {
         'Bánh ngàn lớp nướng thủ công với bơ Pháp cao cấp. Vỏ ngoài vàng ruộm giòn tan từng lớp rụm, ruột bánh xốp mềm, thơm đậm vị bơ tự nhiên mà không gây ngấy.',
       imageUrl: '/images/products/croissant.png',
       basePrice: 35000,
+      category: 'bakery',
+      tag: 'Bơ Pháp',
     });
   }
 
   console.log('Seeding products...');
-  for (let i = 0; i < products.length; i++) {
-    const p = products[i];
-    await prisma.product.upsert({
-      where: { id: i + 1 },
-      update: {
-        name: p.name,
-        description: p.description,
-        imageUrl: p.imageUrl,
-        basePrice: p.basePrice,
-      },
-      create: {
-        id: i + 1,
-        name: p.name,
-        description: p.description,
-        imageUrl: p.imageUrl,
-        basePrice: p.basePrice,
-      },
-    });
+  const existingProductCount = await prisma.product.count();
+  if (existingProductCount === 0) {
+    for (let i = 0; i < products.length; i++) {
+      const p = products[i];
+      await prisma.product.upsert({
+        where: { id: i + 1 },
+        update: {},
+        create: {
+          id: i + 1,
+          name: p.name,
+          description: p.description,
+          imageUrl: p.imageUrl,
+          basePrice: p.basePrice,
+          category: p.category,
+          tag: p.tag,
+          isActive: true,
+          isSoldOutManual: false,
+        },
+      });
+    }
+    console.log(`Seeded ${products.length} products successfully.`);
+  } else {
+    console.log(`Products already exist (${existingProductCount}), preserving Admin customizations.`);
   }
-  console.log(`Seeded ${products.length} products successfully.`);
 
-  // ─── 2. SEED INGREDIENTS (12 NGUYÊN LIỆU PHA CHẾ + 3 BÁNH NHẬP SẴN) ─────────
+  // ─── 2. SEED INGREDIENTS (12 NGUYÊN LIỆU PHA CHẾ + 3 BÁNH NHẬP SẴN KÈM GIÁ NHẬP) ─────────
   const ingredientsData = [
     {
       code: 'ING_ROBUSTA',
@@ -128,6 +154,7 @@ async function main() {
       unit: 'g',
       stock: 5000,
       minThreshold: 500,
+      costPerUnit: 220, // 220.000đ / 1 Kg
     },
     {
       code: 'ING_ARABICA',
@@ -135,6 +162,7 @@ async function main() {
       unit: 'g',
       stock: 3000,
       minThreshold: 300,
+      costPerUnit: 350, // 350.000đ / 1 Kg
     },
     {
       code: 'ING_MILK_COND',
@@ -142,6 +170,7 @@ async function main() {
       unit: 'ml',
       stock: 10000,
       minThreshold: 1000,
+      costPerUnit: 55, // 55.000đ / 1 Lít
     },
     {
       code: 'ING_MILK_FRESH',
@@ -149,6 +178,7 @@ async function main() {
       unit: 'ml',
       stock: 15000,
       minThreshold: 1500,
+      costPerUnit: 38, // 38.000đ / 1 Lít
     },
     {
       code: 'ING_CREAM_RICH',
@@ -156,6 +186,7 @@ async function main() {
       unit: 'ml',
       stock: 5000,
       minThreshold: 500,
+      costPerUnit: 85, // 85.000đ / 1 Lít
     },
     {
       code: 'ING_MATCHA',
@@ -163,6 +194,7 @@ async function main() {
       unit: 'g',
       stock: 1000,
       minThreshold: 150,
+      costPerUnit: 950, // 950.000đ / 1 Kg
     },
     {
       code: 'ING_TEA_BLACK',
@@ -170,6 +202,7 @@ async function main() {
       unit: 'ml',
       stock: 10000,
       minThreshold: 1000,
+      costPerUnit: 18, // 18.000đ / 1 Lít cốt trà
     },
     {
       code: 'ING_PEACH',
@@ -177,6 +210,7 @@ async function main() {
       unit: 'lát',
       stock: 200,
       minThreshold: 30,
+      costPerUnit: 2500, // 2.500đ / 1 lát đào
     },
     {
       code: 'ING_SYRUP_ORANGE',
@@ -184,6 +218,7 @@ async function main() {
       unit: 'ml',
       stock: 3000,
       minThreshold: 300,
+      costPerUnit: 140, // 140.000đ / 1 Lít
     },
     {
       code: 'ING_CARAMEL',
@@ -191,6 +226,7 @@ async function main() {
       unit: 'ml',
       stock: 2000,
       minThreshold: 200,
+      costPerUnit: 180, // 180.000đ / 1 Lít
     },
     {
       code: 'ING_BOBA',
@@ -198,6 +234,7 @@ async function main() {
       unit: 'g',
       stock: 4000,
       minThreshold: 500,
+      costPerUnit: 65, // 65.000đ / 1 Kg
     },
     {
       code: 'ING_SEA_SALT',
@@ -205,6 +242,7 @@ async function main() {
       unit: 'g',
       stock: 1000,
       minThreshold: 100,
+      costPerUnit: 40, // 40.000đ / 1 Kg
     },
     // 3 món bánh ngọt nhập sẵn theo số lượng đơn vị
     {
@@ -213,6 +251,7 @@ async function main() {
       unit: 'chiếc',
       stock: 30,
       minThreshold: 5,
+      costPerUnit: 18000, // 18.000đ / 1 chiếc
     },
     {
       code: 'ING_CHEESECAKE',
@@ -220,6 +259,7 @@ async function main() {
       unit: 'lát',
       stock: 25,
       minThreshold: 5,
+      costPerUnit: 22000, // 22.000đ / 1 lát
     },
     {
       code: 'ING_TIRAMISU',
@@ -227,19 +267,23 @@ async function main() {
       unit: 'phần',
       stock: 25,
       minThreshold: 5,
+      costPerUnit: 24000, // 24.000đ / 1 phần
     },
   ];
 
   console.log('Seeding ingredients...');
   const ingMap: Record<string, number> = {};
   for (const ing of ingredientsData) {
+    const existingIng = await prisma.ingredient.findUnique({ where: { code: ing.code } });
     const record = await prisma.ingredient.upsert({
       where: { code: ing.code },
       update: {
         name: ing.name,
         unit: ing.unit,
-        stock: ing.stock,
         minThreshold: ing.minThreshold,
+        ...(existingIng && existingIng.costPerUnit === 0
+          ? { costPerUnit: ing.costPerUnit }
+          : {}),
       },
       create: ing,
     });
@@ -333,56 +377,71 @@ async function main() {
   ];
 
   console.log('Seeding product recipes...');
-  for (const r of recipesData) {
-    const ingredientId = ingMap[r.ingCode];
-    if (!ingredientId) continue;
-    await prisma.recipe.upsert({
-      where: {
-        productId_ingredientId_size: {
+  const existingProductsList = await prisma.product.findMany({ select: { id: true } });
+  const existingProductIdSet = new Set(existingProductsList.map((p) => p.id));
+  const existingRecipeCount = await prisma.recipe.count();
+  if (existingRecipeCount === 0) {
+    for (const r of recipesData) {
+      const ingredientId = ingMap[r.ingCode];
+      if (!ingredientId || !existingProductIdSet.has(r.productId)) continue;
+      await prisma.recipe.upsert({
+        where: {
+          productId_ingredientId_size: {
+            productId: r.productId,
+            ingredientId,
+            size: r.size,
+          },
+        },
+        update: { amount: r.amount },
+        create: {
           productId: r.productId,
           ingredientId,
           size: r.size,
+          amount: r.amount,
         },
-      },
-      update: { amount: r.amount },
-      create: {
-        productId: r.productId,
-        ingredientId,
-        size: r.size,
-        amount: r.amount,
-      },
-    });
+      });
+    }
   }
 
-  // ─── 4. SEED TOPPING RECIPES (4 LOẠI TOPPING) ───────────────────────────────
+  // ─── 4. SEED TOPPING RECIPES (4 LOẠI TOPPING KÈM GIÁ BÁN & MÔ TẢ) ───────────
   const toppingRecipesData = [
     {
       toppingId: 'boba',
       toppingName: 'Trân châu trắng giòn',
+      subtext: 'Crystal boba dẻo dai',
+      price: 8000,
       ingCode: 'ING_BOBA',
       amount: 40,
     },
     {
       toppingId: 'cream',
       toppingName: 'Thêm Kem Muối Béo',
+      subtext: 'Velvety Salted Foam',
+      price: 10000,
       ingCode: 'ING_CREAM_RICH',
       amount: 35,
     },
     {
       toppingId: 'cream',
       toppingName: 'Thêm Kem Muối Béo',
+      subtext: 'Velvety Salted Foam',
+      price: 10000,
       ingCode: 'ING_SEA_SALT',
       amount: 1,
     },
     {
       toppingId: 'jelly',
       toppingName: 'Thạch Cà Phê Phin',
+      subtext: 'Đậm vị Robusta giòn sần sật',
+      price: 8000,
       ingCode: 'ING_ROBUSTA',
       amount: 10,
     },
     {
       toppingId: 'shot',
       toppingName: 'Thêm 1 Shot Espresso',
+      subtext: 'Tăng cường tỉnh táo đậm sâu',
+      price: 12000,
       ingCode: 'ING_ARABICA',
       amount: 18,
     },
@@ -399,16 +458,72 @@ async function main() {
           ingredientId,
         },
       },
-      update: {
-        toppingName: tr.toppingName,
-        amount: tr.amount,
-      },
+      update: {},
       create: {
         toppingId: tr.toppingId,
         toppingName: tr.toppingName,
+        subtext: tr.subtext,
+        price: tr.price,
+        isActive: true,
         ingredientId,
         amount: tr.amount,
       },
+    });
+  }
+
+  // ─── 4B. SEED DEFAULT GLOBAL SIZE PRICING & VOUCHERS ───────────────────────
+  const defaultSettings = [
+    { key: 'SIZE_UPCHARGE_S', value: '0', description: 'Phụ thu Size S chuẩn toàn quán (VNĐ)' },
+    { key: 'SIZE_UPCHARGE_M', value: '5000', description: 'Phụ thu Size M chuẩn toàn quán (VNĐ)' },
+    { key: 'SIZE_UPCHARGE_L', value: '10000', description: 'Phụ thu Size L chuẩn toàn quán (VNĐ)' },
+  ];
+  for (const st of defaultSettings) {
+    await prisma.storeSetting.upsert({
+      where: { key: st.key },
+      update: {},
+      create: st,
+    });
+  }
+
+  const defaultVouchers = [
+    {
+      code: 'BREWCOZY',
+      description: 'Ưu đãi Giờ vàng giảm 15% toàn menu',
+      discountPercent: 15,
+      minOrderAmount: 0,
+      isActive: true,
+    },
+    {
+      code: 'BREW10',
+      description: 'Voucher Giảm 10% Toàn Đơn',
+      discountPercent: 10,
+      minOrderAmount: 0,
+      isActive: true,
+    },
+    {
+      code: 'BREW20',
+      description: 'Voucher Giảm 20% Đơn Từ 60k',
+      discountPercent: 20,
+      minOrderAmount: 60000,
+      isActive: true,
+    },
+    {
+      code: 'BREW50',
+      description: 'Siêu Voucher Giảm 50% VIP',
+      discountPercent: 50,
+      minOrderAmount: 120000,
+      isActive: true,
+    },
+  ];
+  for (const v of defaultVouchers) {
+    await prisma.discountCode.upsert({
+      where: { code: v.code },
+      update: {
+        description: v.description,
+        minOrderAmount: v.minOrderAmount,
+        discountPercent: v.discountPercent,
+      },
+      create: v,
     });
   }
 

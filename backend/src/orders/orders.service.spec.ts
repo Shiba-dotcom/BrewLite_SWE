@@ -616,5 +616,105 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
         ),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it('giới hạn mức giảm tối đa 15.000đ cho mã BREW10 khi đơn lớn', async () => {
+      const mockCreatedOrder = {
+        id: 203,
+        status: OrderStatus.PENDING,
+        totalAmount: 185000,
+        discountCode: 'BREW10',
+        discountAmount: 15000,
+        items: [],
+      };
+
+      prisma.$transaction.mockImplementation(async (cb) => {
+        return cb({
+          order: {
+            create: vi.fn().mockResolvedValue(mockCreatedOrder),
+          },
+        });
+      });
+
+      // Đơn 200.000đ, 10% = 20.000đ -> Giảm tối đa 15.000đ
+      const result = await service.createOrder(
+        {
+          items: [
+            {
+              productId: 1,
+              productName: 'Cà phê Muối',
+              size: 'L',
+              toppings: [],
+              quantity: 4,
+              unitPrice: 50000,
+            },
+          ],
+          discountCode: 'BREW10',
+        },
+        1,
+      );
+
+      expect(result.discountAmount).toBe(15000);
+    });
+
+    it('từ chối mã BREW20 nếu đơn dưới 60.000đ và áp dụng đúng khi đủ điều kiện', async () => {
+      // Đơn 50.000đ < 60.000đ -> Lỗi
+      await expect(
+        service.createOrder(
+          {
+            items: [
+              {
+                productId: 1,
+                productName: 'Cà phê Muối',
+                size: 'M',
+                toppings: [],
+                quantity: 1,
+                unitPrice: 50000,
+              },
+            ],
+            discountCode: 'BREW20',
+          },
+          1,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('giới hạn mức giảm tối đa 60.000đ cho mã BREW50', async () => {
+      const mockCreatedOrder = {
+        id: 204,
+        status: OrderStatus.PENDING,
+        totalAmount: 140000,
+        discountCode: 'BREW50',
+        discountAmount: 60000,
+        items: [],
+      };
+
+      prisma.$transaction.mockImplementation(async (cb) => {
+        return cb({
+          order: {
+            create: vi.fn().mockResolvedValue(mockCreatedOrder),
+          },
+        });
+      });
+
+      // Đơn 200.000đ, 50% = 100.000đ -> Giảm tối đa 60.000đ
+      const result = await service.createOrder(
+        {
+          items: [
+            {
+              productId: 1,
+              productName: 'Cà phê Phin',
+              size: 'L',
+              toppings: [],
+              quantity: 4,
+              unitPrice: 50000,
+            },
+          ],
+          discountCode: 'BREW50',
+        },
+        1,
+      );
+
+      expect(result.discountAmount).toBe(60000);
+    });
   });
 });

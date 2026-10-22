@@ -81,6 +81,8 @@ function itemKey(
 
 interface CartState {
   items: CartItem[];
+  appliedPromo: string | null;
+  setAppliedPromo: (code: string | null) => void;
 
   // ── Mutations ──────────────────────────────────────────────────────────────
   /** Add an item or merge into existing identical entry */
@@ -112,6 +114,10 @@ export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
+      appliedPromo: null,
+
+      setAppliedPromo: (code) =>
+        set({ appliedPromo: code ? code.trim().toUpperCase() : null }),
 
       addItem: (newItem) => {
         const isBakery = newItem.isBakery || isBakeryProduct(newItem);
@@ -223,7 +229,7 @@ export const useCartStore = create<CartState>()(
         }));
       },
 
-      clearCart: () => set({ items: [] }),
+      clearCart: () => set({ items: [], appliedPromo: null }),
 
       cartCount: () => get().items.reduce((acc, i) => acc + i.quantity, 0),
 
