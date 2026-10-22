@@ -411,6 +411,7 @@ export interface VoucherItem {
   description: string;
   discountPercent: number;
   minOrderAmount: number;
+  quantity?: number;
 }
 
 function PromoCard({
@@ -494,7 +495,7 @@ function PromoCard({
           onClick={onOpenModal}
           className="inline-flex items-center gap-1 text-[11px] font-bold text-[#845326] hover:text-[#5a3414] transition-colors cursor-pointer"
         >
-          <span>{vouchers?.length || 0} mã khả dụng</span>
+          <span>{vouchers?.reduce((s, x) => s + (x.quantity || 1), 0) || 0} mã khả dụng</span>
           <ChevronRight size={13} />
         </button>
       </div>
@@ -562,13 +563,18 @@ function PromoCard({
                 <Tag size={15} />
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="font-mono font-bold text-xs bg-[#2c1810] text-white px-2 py-0.5 rounded-md">
                     {appliedCode}
                   </span>
                   <span className="text-xs font-bold text-[#845326]">
                     -{appliedPercent ?? 15}%
                   </span>
+                  {matchedVoucher && (matchedVoucher.quantity || 1) > 1 && (
+                    <span className="text-[10px] bg-amber-100 text-amber-900 font-extrabold px-1.5 py-0.2 rounded border border-amber-300">
+                      Đang dùng 1/{matchedVoucher.quantity} vé
+                    </span>
+                  )}
                 </div>
                 {isUnderMin ? (
                   <p className="text-[11px] text-amber-700 font-medium font-body mt-0.5 flex items-center gap-1">
@@ -580,6 +586,11 @@ function PromoCard({
                     {discountAmount && discountAmount > 0
                       ? `Đã giảm -${vnd(discountAmount)} vào đơn hàng`
                       : "Đã kích hoạt ưu đãi vào đơn"}
+                    {matchedVoucher && (matchedVoucher.quantity || 1) > 1 && (
+                      <span className="text-amber-800 ml-1">
+                        (Còn {matchedVoucher.quantity! - 1} mã cho đơn sau)
+                      </span>
+                    )}
                   </p>
                 )}
               </div>
@@ -889,11 +900,12 @@ export default function CartPage() {
     setAppliedPromo,
   } = useCartStore();
 
+  const { user } = useAuthStore();
   const [hydrated, setHydrated] = useState(false);
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
   const [availableVouchers, setAvailableVouchers] = useState<VoucherItem[]>([
-    { code: "BREWCOZY", description: "Giờ vàng -15%", discountPercent: 15, minOrderAmount: 0 },
-    { code: "BREW10", description: "Ưu đãi thành viên -10%", discountPercent: 10, minOrderAmount: 0 },
+    { code: "BREWCOZY", description: "Giờ vàng -15%", discountPercent: 15, minOrderAmount: 0, quantity: 1 },
+    { code: "BREW10", description: "Ưu đãi thành viên -10%", discountPercent: 10, minOrderAmount: 0, quantity: 1 },
   ]);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -912,14 +924,72 @@ export default function CartPage() {
     fetch(`${apiBase}/inventory/pricing-config`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
+        let baseList: VoucherItem[] = [
+          { code: "BREWCOZY", description: "Giờ vàng -15%", discountPercent: 15, minOrderAmount: 0, quantity: 1 },
+          { code: "BREW10", description: "Ưu đãi thành viên -10%", discountPercent: 10, minOrderAmount: 0, quantity: 1 },
+        ];
         if (data && Array.isArray(data.vouchers) && data.vouchers.length > 0) {
-          setAvailableVouchers(data.vouchers);
+          baseList = data.vouchers.map((v: VoucherItem) => ({ ...v, quantity: v.quantity || 1 }));
         }
+
+        // Đồng bộ cộng dồn các mã người dùng đã đổi
+        const userVouchers = user?.vouchers || [];
+        const merged = [...baseList];
+        userVouchers.forEach((uv) => {
+          const idx = merged.findIndex((m) => m.code === uv.code);
+          if (idx >= 0) {
+            merged[idx] = {
+              ...merged[idx],
+              quantity: uv.quantity,
+            };
+          } else {
+            merged.push({
+              code: uv.code,
+              description: `Ưu đãi ${uv.code} (-${uv.discountPercent}%)`,
+              discountPercent: uv.discountPercent,
+              minOrderAmount: uv.minOrderAmount,
+              quantity: uv.quantity,
+            });
+          }
+        });
+
+        setAvailableVouchers(merged);
       })
       .catch(() => {
         // Fallback to static vouchers
       });
-  }, []);
+  }, [user?.vouchers]);
+
+  const handleRedeemSuccess = (code: string, newQty?: number) => {
+    setAvailableVouchers((prev) => {
+      const idx = prev.findIndex((v) => v.code === code);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = {
+          ...next[idx],
+          quantity: typeof newQty === "number" ? newQty : (next[idx].quantity || 1) + 1,
+        };
+        return next;
+      } else {
+        const reward =
+          code === "BREW50"
+            ? { pct: 50, min: 80000 }
+            : code === "BREW20"
+            ? { pct: 20, min: 50000 }
+            : { pct: 10, min: 0 };
+        return [
+          ...prev,
+          {
+            code,
+            description: `Ưu đãi ${code}`,
+            discountPercent: reward.pct,
+            minOrderAmount: reward.min,
+            quantity: typeof newQty === "number" ? newQty : 1,
+          },
+        ];
+      }
+    });
+  };
 
   const count = hydrated ? cartCount() : 0;
   const subtotal = hydrated ? cartTotal() : 0;
@@ -1387,6 +1457,7 @@ export default function CartPage() {
         subtotal={subtotal}
         onSelectVoucher={(code) => setAppliedPromo(code)}
         onRemoveVoucher={() => setAppliedPromo(null)}
+        onRedeemSuccess={handleRedeemSuccess}
       />
 
       {/* Footer */}

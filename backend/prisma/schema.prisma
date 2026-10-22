@@ -143,9 +143,24 @@ model User {
   fullName      String?
   phone         String?
   role          Role     @default(CUSTOMER)
-  loyaltyPoints Int      @default(0)   // Task 10: Điểm Hạt Vàng tích lũy
-  createdAt     DateTime @default(now())
+  loyaltyPoints Int           @default(0)   // Task 10: Điểm Hạt Vàng tích lũy
+  createdAt     DateTime      @default(now())
   orders        Order[]
+  vouchers      UserVoucher[]
+}
+
+model UserVoucher {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code            String
+  quantity        Int      @default(1)
+  discountPercent Float
+  minOrderAmount  Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  @@unique([userId, code])
 }
 
 model Order {

@@ -45,20 +45,43 @@ export class AuthController {
   }
 
   /**
-   * POST /auth/redeem-points — Đổi điểm Hạt Vàng lấy Voucher / Quà tặng (trừ điểm)
+   * POST /auth/redeem-points — Đổi điểm Hạt Vàng lấy Voucher / Quà tặng (trừ điểm & cộng dồn voucher)
    * Yêu cầu JWT Bearer Token
    */
   @UseGuards(JwtAuthGuard)
   @Post('redeem-points')
   redeemPoints(
     @Request() req: AuthRequest,
-    @Body() body: { points: number; description?: string },
+    @Body()
+    body: {
+      points: number;
+      description?: string;
+      voucherCode?: string;
+      discountPercent?: number;
+      minOrderAmount?: number;
+    },
   ) {
     return this.authService.redeemPoints(
       req.user.userId,
       Number(body?.points || 0),
       body?.description,
+      body?.voucherCode
+        ? {
+            code: body.voucherCode,
+            discountPercent: Number(body.discountPercent || 10),
+            minOrderAmount: Number(body.minOrderAmount || 0),
+          }
+        : undefined,
     );
+  }
+
+  /**
+   * GET /auth/vouchers — Lấy danh sách mã giảm giá người dùng đang sở hữu
+   */
+  @UseGuards(JwtAuthGuard)
+  @Get('vouchers')
+  getUserVouchers(@Request() req: AuthRequest) {
+    return this.authService.getUserVouchers(req.user.userId);
   }
 }
 

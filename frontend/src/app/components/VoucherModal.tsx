@@ -13,7 +13,7 @@ export interface VoucherModalProps {
   subtotal: number;
   onSelectVoucher: (code: string) => void;
   onRemoveVoucher: () => void;
-  onRedeemSuccess?: (code: string) => void;
+  onRedeemSuccess?: (code: string, newQty?: number) => void;
 }
 
 interface RedeemableReward {
@@ -115,19 +115,25 @@ export default function VoucherModal({
     try {
       const res = await redeemPoints(
         reward.pointCost,
-        `Đổi voucher ${reward.code} (-${reward.discountPercent}%)`
+        `Đổi voucher ${reward.code} (-${reward.discountPercent}%)`,
+        {
+          code: reward.code,
+          discountPercent: reward.discountPercent,
+          minOrderAmount: reward.minOrderAmount,
+        }
       );
 
       if (res.success) {
+        const qty = res.voucher?.quantity;
         showToast(
           "success",
-          `Đã trừ ${reward.pointCost} Hạt Vàng & nhận mã ${reward.code}!`
+          res.message || `Đã trừ ${reward.pointCost} Hạt Vàng & nhận mã ${reward.code}!`
         );
         onSelectVoucher(reward.code);
-        if (onRedeemSuccess) onRedeemSuccess(reward.code);
+        if (onRedeemSuccess) onRedeemSuccess(reward.code, qty);
         setTimeout(() => {
           onClose();
-        }, 1200);
+        }, 1500);
       } else {
         showToast("error", res.message || "Đổi ưu đãi thất bại");
       }
@@ -201,7 +207,7 @@ export default function VoucherModal({
             }`}
           >
             <Tag size={13} />
-            <span>Mã có sẵn ({vouchers.length})</span>
+            <span>Mã có sẵn ({vouchers.reduce((s, x) => s + (x.quantity || 1), 0)})</span>
           </button>
 
           <button
@@ -239,6 +245,7 @@ export default function VoucherModal({
                   const isApplied = appliedCode === v.code;
                   const missingAmount = Math.max(0, min - subtotal);
                   const progress = min > 0 ? Math.min(100, Math.round((subtotal / min) * 100)) : 100;
+                  const qty = v.quantity || 1;
 
                   return (
                     <div
@@ -279,6 +286,11 @@ export default function VoucherModal({
                             <h4 className="font-bold text-xs text-[#1D1B19] truncate">
                               {v.description || `Ưu đãi giảm ${v.discountPercent}%`}
                             </h4>
+                            {qty > 1 && (
+                              <span className="text-[10px] bg-[#d97706] text-white font-extrabold px-2 py-0.5 rounded-full shadow-2xs">
+                                x{qty} vé
+                              </span>
+                            )}
                             {isApplied && (
                               <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
                                 <Check size={10} strokeWidth={3} /> Đang chọn
@@ -287,6 +299,11 @@ export default function VoucherModal({
                           </div>
 
                           <p className="text-[11px] text-stone-500 mt-1 font-body">
+                            {qty > 1 && (
+                              <strong className="text-[#845326] mr-1">
+                                {isApplied ? `Đang dùng 1 vé (còn ${qty - 1} vé) •` : `Có ${qty} vé khả dụng •`}
+                              </strong>
+                            )}
                             {min > 0
                               ? `Áp dụng cho đơn từ ${min.toLocaleString("vi-VN")}đ`
                               : "Áp dụng cho mọi giá trị đơn hàng"}
@@ -316,7 +333,7 @@ export default function VoucherModal({
                           <button
                             type="button"
                             onClick={onRemoveVoucher}
-                            className="w-full sm:w-auto px-4 py-2 rounded-xl bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-bold transition-all flex items-center justify-center gap-1"
+                            className="w-full sm:w-auto px-4 py-2 rounded-xl bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
                           >
                             <X size={13} strokeWidth={2.5} />
                             <span>Gỡ mã</span>
@@ -325,7 +342,7 @@ export default function VoucherModal({
                           <button
                             type="button"
                             onClick={() => handleApplyVoucher(v)}
-                            className="w-full sm:w-auto px-4 py-2 rounded-xl bg-[#2c1810] hover:bg-[#432317] text-white text-xs font-bold transition-all shadow-xs active:scale-95 flex items-center justify-center gap-1"
+                            className="w-full sm:w-auto px-4 py-2 rounded-xl bg-[#2c1810] hover:bg-[#432317] text-white text-xs font-bold transition-all shadow-xs active:scale-95 flex items-center justify-center gap-1 cursor-pointer"
                           >
                             <span>Áp dụng</span>
                             <ArrowRight size={12} />
@@ -382,6 +399,8 @@ export default function VoucherModal({
                 {REDEEMABLE_REWARDS.map((reward) => {
                   const canAfford = points >= reward.pointCost;
                   const isRedeeming = redeemingId === reward.id;
+                  const owned = vouchers.find((v) => v.code === reward.code);
+                  const ownedQty = owned?.quantity || (owned ? 1 : 0);
 
                   return (
                     <div
@@ -393,13 +412,18 @@ export default function VoucherModal({
                           -{reward.discountPercent}%
                         </div>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <h4 className="font-bold text-xs text-[#1D1B19] truncate">
                               {reward.title}
                             </h4>
                             <span className="text-[9px] bg-amber-100 text-amber-900 font-bold px-1.5 py-0.2 rounded font-mono">
                               {reward.badge}
                             </span>
+                            {ownedQty > 0 && (
+                              <span className="text-[9px] bg-[#FEF3C7] text-[#92400E] font-bold px-1.5 py-0.2 rounded border border-[#FDE68A]">
+                                Đang có: x{ownedQty}
+                              </span>
+                            )}
                           </div>
                           <p className="text-[11px] text-stone-500 mt-0.5">
                             Chi phí:{" "}
@@ -407,6 +431,11 @@ export default function VoucherModal({
                               {reward.pointCost} Hạt Vàng
                             </strong>{" "}
                             • Mã: <span className="font-mono">{reward.code}</span>
+                            {ownedQty > 0 && (
+                              <span className="text-[10px] text-amber-700 font-semibold block sm:inline sm:ml-2">
+                                (Đổi thêm sẽ cộng dồn x{ownedQty + 1})
+                              </span>
+                            )}
                           </p>
                         </div>
                       </div>
@@ -424,7 +453,9 @@ export default function VoucherModal({
                         {isRedeeming
                           ? "Đang đổi..."
                           : canAfford
-                          ? `Đổi (-${reward.pointCost}đ)`
+                          ? ownedQty > 0
+                            ? `Đổi thêm (+1) (-${reward.pointCost}đ)`
+                            : `Đổi (-${reward.pointCost}đ)`
                           : `Thiếu ${reward.pointCost - points}đ`}
                       </button>
                     </div>

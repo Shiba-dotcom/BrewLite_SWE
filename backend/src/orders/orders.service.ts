@@ -327,6 +327,34 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         include: { items: true },
       });
 
+      // Nếu người dùng sử dụng mã voucher cá nhân đã đổi, giảm 1 lượt dùng
+      if (userId && appliedDiscountCode && (tx as any).userVoucher) {
+        try {
+          const userVoucher = await (tx as any).userVoucher.findUnique({
+            where: {
+              userId_code: {
+                userId,
+                code: appliedDiscountCode,
+              },
+            },
+          });
+          if (userVoucher) {
+            if (userVoucher.quantity > 1) {
+              await (tx as any).userVoucher.update({
+                where: { id: userVoucher.id },
+                data: { quantity: { decrement: 1 } },
+              });
+            } else {
+              await (tx as any).userVoucher.delete({
+                where: { id: userVoucher.id },
+              });
+            }
+          }
+        } catch {
+          // Bỏ qua lỗi nếu bảng userVoucher chưa sẵn sàng
+        }
+      }
+
       return newOrder;
     });
 

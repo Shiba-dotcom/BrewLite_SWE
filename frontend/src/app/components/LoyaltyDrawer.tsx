@@ -36,12 +36,39 @@ export default function LoyaltyDrawer({ isOpen, onClose }: LoyaltyDrawerProps) {
     fetch(`${apiBase}/inventory/pricing-config`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
+        let baseList: VoucherItem[] = [
+          { code: "BREWCOZY", description: "Giảm 15% toàn bộ menu", discountPercent: 15, minOrderAmount: 0, quantity: 1 },
+          { code: "BREW10", description: "Ưu đãi thành viên -10%", discountPercent: 10, minOrderAmount: 0, quantity: 1 },
+          { code: "BREW20", description: "Giảm 20% đơn từ 50k", discountPercent: 20, minOrderAmount: 50000, quantity: 1 },
+          { code: "BREW50", description: "Siêu ưu đãi VIP -50%", discountPercent: 50, minOrderAmount: 80000, quantity: 1 },
+        ];
         if (data && Array.isArray(data.vouchers) && data.vouchers.length > 0) {
-          setVouchers(data.vouchers);
+          baseList = data.vouchers.map((v: VoucherItem) => ({ ...v, quantity: v.quantity || 1 }));
         }
+
+        const userVouchers = user?.vouchers || [];
+        const merged = [...baseList];
+        userVouchers.forEach((uv) => {
+          const idx = merged.findIndex((m) => m.code === uv.code);
+          if (idx >= 0) {
+            merged[idx] = {
+              ...merged[idx],
+              quantity: uv.quantity,
+            };
+          } else {
+            merged.push({
+              code: uv.code,
+              description: `Ưu đãi ${uv.code} (-${uv.discountPercent}%)`,
+              discountPercent: uv.discountPercent,
+              minOrderAmount: uv.minOrderAmount,
+              quantity: uv.quantity,
+            });
+          }
+        });
+        setVouchers(merged);
       })
       .catch(() => {});
-  }, []);
+  }, [user?.vouchers]);
 
   useEffect(() => {
     if (isOpen) {
@@ -83,7 +110,13 @@ export default function LoyaltyDrawer({ isOpen, onClose }: LoyaltyDrawerProps) {
     router.push("/cart");
   };
 
-  const handleRedeem = async (voucherTitle: string, code: string, cost: number) => {
+  const handleRedeem = async (
+    voucherTitle: string,
+    code: string,
+    cost: number,
+    discountPercent: number = 10,
+    minOrderAmount: number = 0
+  ) => {
     if (!isAuthenticated) {
       alert("Vui lòng đăng nhập để đổi Hạt Vàng lấy Voucher!");
       return;
@@ -94,15 +127,31 @@ export default function LoyaltyDrawer({ isOpen, onClose }: LoyaltyDrawerProps) {
     }
     setIsRedeeming(true);
     try {
-      const res = await redeemPoints(cost, `Đổi ${voucherTitle}`);
+      const res = await redeemPoints(cost, `Đổi ${voucherTitle}`, {
+        code,
+        discountPercent,
+        minOrderAmount,
+      });
       if (res.success) {
         setAppliedPromo(code);
-        setRedeemedToast(`Đã trừ ${cost} Hạt Vàng & áp dụng mã ${code} vào giỏ hàng!`);
+        const qty = res.voucher?.quantity || 1;
+        setRedeemedToast(
+          res.message || `Đã trừ ${cost} Hạt Vàng & cộng dồn x${qty} mã ${code} vào giỏ hàng!`
+        );
+        setVouchers((prev) => {
+          const idx = prev.findIndex((v) => v.code === code);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = { ...next[idx], quantity: qty };
+            return next;
+          }
+          return prev;
+        });
         setTimeout(() => {
           setRedeemedToast(null);
           onClose();
           router.push("/cart");
-        }, 1200);
+        }, 1500);
       } else {
         alert(res.message || "Đổi ưu đãi không thành công.");
       }
@@ -311,29 +360,47 @@ export default function LoyaltyDrawer({ isOpen, onClose }: LoyaltyDrawerProps) {
                 </div>
 
                 {/* Voucher 2: BREW10 */}
-                <div className="bg-white p-3.5 rounded-xl border border-[#EDE7DE] shadow-2xs flex items-center justify-between gap-3 hover:border-[#845326]/40 transition-all">
-                  <div className="flex items-start gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-lg bg-[#FEF3C7] text-[#92400E] flex items-center justify-center shrink-0">
-                      <span className="material-symbols-outlined text-lg">redeem</span>
+                {(() => {
+                  const b10 = vouchers.find((v) => v.code === "BREW10");
+                  const b10Qty = b10?.quantity || 1;
+                  return (
+                    <div className="bg-white p-3.5 rounded-xl border border-[#EDE7DE] shadow-2xs flex items-center justify-between gap-3 hover:border-[#845326]/40 transition-all">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-lg bg-[#FEF3C7] text-[#92400E] flex items-center justify-center shrink-0">
+                          <span className="material-symbols-outlined text-lg">redeem</span>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h4 className="font-bold text-xs text-[#1D1B19] truncate">
+                              Giảm 10% đơn hàng
+                            </h4>
+                            {b10Qty > 1 && (
+                              <span className="text-[9px] bg-amber-500 text-white font-extrabold px-1.5 py-0.2 rounded-full">
+                                x{b10Qty} vé
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-[#827470] mt-0.5">
+                            Mã: <strong className="text-[#1D1B19]">BREW10</strong> • Đổi với 20 Hạt Vàng
+                            {b10Qty > 1 && (
+                              <span className="text-amber-800 font-semibold block text-[10px]">
+                                (Đã có {b10Qty} vé, đổi thêm sẽ cộng dồn)
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isRedeeming}
+                        onClick={() => handleRedeem("Giảm 10% đơn hàng", "BREW10", 20, 10, 0)}
+                        className="shrink-0 px-3 py-1.5 rounded-full bg-[#FAF0E6] hover:bg-[#F3E5D8] text-[#845326] border border-[#D97736]/30 text-[11px] font-bold transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+                      >
+                        {isRedeeming ? "Đang đổi..." : b10Qty > 1 ? "Đổi thêm (20đ)" : "Đổi ngay (20đ)"}
+                      </button>
                     </div>
-                    <div className="min-w-0">
-                      <h4 className="font-bold text-xs text-[#1D1B19] truncate">
-                        Giảm 10% đơn hàng
-                      </h4>
-                      <p className="text-[11px] text-[#827470] mt-0.5">
-                        Mã: <strong className="text-[#1D1B19]">BREW10</strong> • Đổi với 20 Hạt Vàng
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={isRedeeming}
-                    onClick={() => handleRedeem("Giảm 10% đơn hàng", "BREW10", 20)}
-                    className="shrink-0 px-3 py-1.5 rounded-full bg-[#FAF0E6] hover:bg-[#F3E5D8] text-[#845326] border border-[#D97736]/30 text-[11px] font-bold transition-all cursor-pointer disabled:opacity-50 active:scale-95"
-                  >
-                    {isRedeeming ? "Đang đổi..." : "Đổi ngay (20đ)"}
-                  </button>
-                </div>
+                  );
+                })()}
 
                 {/* Voucher 3: Free Topping Foam */}
                 <div className="bg-white p-3.5 rounded-xl border border-[#EDE7DE] shadow-2xs flex items-center justify-between gap-3 hover:border-[#845326]/40 transition-all">
