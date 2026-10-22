@@ -29,6 +29,7 @@ interface AuthState {
   logout: () => void;
   setHasHydrated: (state: boolean) => void;
   refreshProfile: () => Promise<void>;
+  redeemPoints: (points: number, description?: string) => Promise<{ success: boolean; message: string }>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -60,6 +61,33 @@ export const useAuthStore = create<AuthState>()(
           }
         } catch {
           // ignore network error
+        }
+      },
+
+      redeemPoints: async (points: number, description?: string) => {
+        const token = get().token;
+        if (!token) return { success: false, message: "Vui lòng đăng nhập để đổi quà" };
+        try {
+          const res = await apiFetch("/auth/redeem-points", {
+            method: "POST",
+            body: JSON.stringify({ points, description }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            return { success: false, message: data.message || "Đổi điểm thất bại" };
+          }
+          if (data.user) {
+            set((state) => ({
+              user: state.user ? { ...state.user, ...data.user } : data.user,
+            }));
+          } else if (typeof data.remainingPoints === "number") {
+            set((state) => ({
+              user: state.user ? { ...state.user, loyaltyPoints: data.remainingPoints } : null,
+            }));
+          }
+          return { success: true, message: data.message || "Đổi điểm thành công!" };
+        } catch {
+          return { success: false, message: "Lỗi kết nối máy chủ" };
         }
       },
     }),

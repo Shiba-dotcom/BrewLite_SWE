@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -124,5 +125,41 @@ export class AuthService {
     }
 
     return safeUser(user);
+  }
+
+  // ─── Redeem Loyalty Points ───────────────────────────────────────────────────
+
+  async redeemPoints(userId: number, points: number, description?: string) {
+    if (!points || points <= 0) {
+      throw new BadRequestException('Số Hạt Vàng cần đổi phải lớn hơn 0');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User không tồn tại');
+    }
+
+    if (user.loyaltyPoints < points) {
+      throw new BadRequestException(
+        `Bạn không đủ Hạt Vàng (Cần ${points} Hạt Vàng, hiện có ${user.loyaltyPoints} Hạt Vàng).`,
+      );
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        loyaltyPoints: { decrement: points },
+      },
+    });
+
+    return {
+      success: true,
+      message: `Đã đổi thành công! Trừ ${points} Hạt Vàng.`,
+      remainingPoints: updated.loyaltyPoints,
+      user: safeUser(updated),
+    };
   }
 }

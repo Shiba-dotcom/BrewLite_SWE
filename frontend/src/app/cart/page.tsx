@@ -22,10 +22,13 @@ import {
   Sparkles,
   Coffee,
   X,
+  Ticket,
+  AlertCircle,
 } from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import ProductDetailModal, { CustomizationDetails } from "../components/ProductDetailModal";
+import VoucherModal from "../components/VoucherModal";
 import { DEFAULT_PRODUCTS, Product } from "../menu/page";
 import { useCartStore, CartItem, isBakeryProduct } from "../store/cartStore";
 import { useAuthStore, apiFetch } from "../store/authStore";
@@ -403,7 +406,7 @@ function LocationCard() {
 }
 
 /** Card 2: Promo code */
-interface VoucherItem {
+export interface VoucherItem {
   code: string;
   description: string;
   discountPercent: number;
@@ -414,96 +417,192 @@ function PromoCard({
   appliedCode,
   appliedPercent,
   vouchers,
+  matchedVoucher,
   onApply,
   onRemove,
+  onOpenModal,
+  subtotal,
+  discountAmount,
 }: {
   appliedCode: string | null;
   appliedPercent?: number;
+  discountAmount?: number;
   vouchers?: VoucherItem[];
+  matchedVoucher?: VoucherItem | null;
+  subtotal: number;
   onApply: (code: string) => void;
   onRemove: () => void;
+  onOpenModal: () => void;
 }) {
   const [inputCode, setInputCode] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const isUnderMin = Boolean(
+    matchedVoucher?.minOrderAmount && subtotal < matchedVoucher.minOrderAmount
+  );
+  const missingAmount = isUnderMin
+    ? (matchedVoucher?.minOrderAmount || 0) - subtotal
+    : 0;
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputCode.trim()) return;
-    onApply(inputCode.trim().toUpperCase());
+    const clean = inputCode.trim().toUpperCase();
+
+    // Validate code
+    const found = vouchers?.find((v) => v.code === clean);
+    if (
+      !found &&
+      clean !== "BREWCOZY" &&
+      clean !== "BREW10" &&
+      clean !== "BREWLITE10"
+    ) {
+      setErrorMessage(`Mã giảm giá "${clean}" không tồn tại hoặc đã hết hạn.`);
+      return;
+    }
+
+    if (found && found.minOrderAmount && subtotal < found.minOrderAmount) {
+      const missing = found.minOrderAmount - subtotal;
+      setErrorMessage(
+        `Mã "${clean}" yêu cầu đơn tối thiểu ${found.minOrderAmount.toLocaleString(
+          "vi-VN"
+        )}đ (còn thiếu ${missing.toLocaleString("vi-VN")}đ).`
+      );
+      return;
+    }
+
+    setErrorMessage(null);
+    onApply(clean);
     setInputCode("");
   };
 
   return (
     <div className="bg-white rounded-2xl border border-stone-100 shadow-xs p-5 flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-[#f4efe6] flex items-center justify-center">
-          <Tag size={15} className="text-[#845326]" strokeWidth={1.75} />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-[#f4efe6] flex items-center justify-center">
+            <Tag size={15} className="text-[#845326]" strokeWidth={1.75} />
+          </div>
+          <span className="font-headline text-[14px] font-bold text-[#1d1b19]">
+            {"Mã giảm giá ưu đãi".normalize("NFC")}
+          </span>
         </div>
-        <span className="font-headline text-[14px] font-bold text-[#1d1b19]">
-          {"Mã giảm giá ưu đãi".normalize("NFC")}
-        </span>
+
+        {/* Voucher count pill */}
+        <button
+          type="button"
+          onClick={onOpenModal}
+          className="inline-flex items-center gap-1 text-[11px] font-bold text-[#845326] hover:text-[#5a3414] transition-colors cursor-pointer"
+        >
+          <span>{vouchers?.length || 0} mã khả dụng</span>
+          <ChevronRight size={13} />
+        </button>
       </div>
 
       {!appliedCode ? (
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <input
-            type="text"
-            value={inputCode}
-            onChange={(e) => setInputCode(e.target.value.toUpperCase())}
-            placeholder={"VD: BREWCOZY".normalize("NFC")}
-            id="promoCodeInput"
-            className="flex-1 px-3.5 py-2.5 text-[13px] bg-[#f8f2ee] border border-stone-200 rounded-xl focus:outline-hidden focus:border-[#845326] focus:bg-white text-[#1d1b19] placeholder:text-stone-400 font-body transition-colors uppercase"
-          />
-          <button
-            type="submit"
-            className="px-4 py-2.5 bg-[#221811] hover:bg-[#2c1810] text-white text-[13px] font-bold rounded-xl transition-colors font-body whitespace-nowrap active:scale-95"
-          >
-            {"Áp dụng".normalize("NFC")}
-          </button>
-        </form>
-      ) : (
-        <div className="flex items-center justify-between gap-2 bg-[#fff7ed] border border-[#fed7aa] rounded-xl px-3.5 py-2.5">
-          <div className="flex items-center gap-2 min-w-0">
-            <CheckCircle2 size={16} className="text-emerald-600 shrink-0" strokeWidth={2} />
-            <div className="min-w-0">
-              <p className="text-[13px] font-bold text-[#2c1810] font-body">
-                {`Mã ${appliedCode} (-${appliedPercent ?? 15}% Ưu đãi)`}
-              </p>
-              <p className="text-[11px] text-stone-500 font-body">
-                {`Đã áp dụng giảm ${appliedPercent ?? 15}% vào đơn hàng`.normalize("NFC")}
-              </p>
-            </div>
-          </div>
+        <div className="flex flex-col gap-2.5">
+          <form onSubmit={handleSubmit} className="flex gap-2">
+            <input
+              type="text"
+              value={inputCode}
+              onChange={(e) => {
+                setInputCode(e.target.value.toUpperCase());
+                if (errorMessage) setErrorMessage(null);
+              }}
+              placeholder={"Nhập mã ưu đãi (VD: BREW10)".normalize("NFC")}
+              id="promoCodeInput"
+              className="flex-1 px-3.5 py-2.5 text-[13px] bg-[#f8f2ee] border border-stone-200 rounded-xl focus:outline-hidden focus:border-[#845326] focus:bg-white text-[#1d1b19] placeholder:text-stone-400 font-body transition-colors uppercase font-mono"
+            />
+            <button
+              type="submit"
+              className="px-4 py-2.5 bg-[#221811] hover:bg-[#2c1810] text-white text-[13px] font-bold rounded-xl transition-colors font-body whitespace-nowrap active:scale-95 cursor-pointer"
+            >
+              {"Áp dụng".normalize("NFC")}
+            </button>
+          </form>
+
+          {errorMessage && (
+            <p className="text-[11px] text-red-600 font-medium flex items-center gap-1.5 animate-fadeIn">
+              <AlertCircle size={13} className="shrink-0 text-red-500" />
+              <span>{errorMessage}</span>
+            </p>
+          )}
+
+          {/* Clean Voucher Modal Trigger Button */}
           <button
             type="button"
-            onClick={onRemove}
-            aria-label={"Gỡ mã".normalize("NFC")}
-            className="shrink-0 p-1 rounded-full hover:bg-[#fed7aa] text-stone-500 hover:text-[#b45309] transition-colors"
+            onClick={onOpenModal}
+            className="w-full flex items-center justify-between p-3 rounded-xl bg-[#FAF0E6]/70 hover:bg-[#FAF0E6] border border-[#845326]/20 text-left transition-all cursor-pointer group"
           >
-            <X size={15} strokeWidth={2.2} />
+            <div className="flex items-center gap-2.5 text-[#845326]">
+              <Ticket size={16} />
+              <div className="flex flex-col">
+                <span className="text-xs font-bold font-body leading-tight">
+                  {"Chọn hoặc đổi mã giảm giá".normalize("NFC")}
+                </span>
+                <span className="text-[10px] text-stone-500 font-body">
+                  {"Dùng Hạt Vàng hoặc áp dụng mã sẵn có".normalize("NFC")}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-bold text-[#845326]">
+              <span>{"Chọn mã".normalize("NFC")}</span>
+              <ChevronRight
+                size={14}
+                className="group-hover:translate-x-0.5 transition-transform"
+              />
+            </div>
           </button>
         </div>
-      )}
+      ) : (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-2 bg-[#fffaf5] border border-[#f3d5ba] rounded-2xl p-3.5 shadow-2xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-[#845326] text-white flex items-center justify-center shrink-0 shadow-2xs">
+                <Tag size={15} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono font-bold text-xs bg-[#2c1810] text-white px-2 py-0.5 rounded-md">
+                    {appliedCode}
+                  </span>
+                  <span className="text-xs font-bold text-[#845326]">
+                    -{appliedPercent ?? 15}%
+                  </span>
+                </div>
+                {isUnderMin ? (
+                  <p className="text-[11px] text-amber-700 font-medium font-body mt-0.5 flex items-center gap-1">
+                    <AlertCircle size={12} className="shrink-0 text-amber-600" />
+                    <span>Thiếu {vnd(missingAmount)} để được giảm</span>
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-stone-500 font-body mt-0.5 truncate">
+                    {discountAmount && discountAmount > 0
+                      ? `Đã giảm -${vnd(discountAmount)} vào đơn hàng`
+                      : "Đã kích hoạt ưu đãi vào đơn"}
+                  </p>
+                )}
+              </div>
+            </div>
 
-      {!appliedCode && (
-        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-stone-400 font-body">
-          <span>{"Mã khả dụng:".normalize("NFC")}</span>
-          {(vouchers && vouchers.length > 0
-            ? vouchers
-            : [
-                { code: "BREWCOZY", description: "Giờ vàng -15%", discountPercent: 15, minOrderAmount: 0 },
-                { code: "BREW10", description: "Ưu đãi -10%", discountPercent: 10, minOrderAmount: 0 },
-              ]
-          ).map((v) => (
-            <button
-              key={v.code}
-              type="button"
-              onClick={() => onApply(v.code)}
-              title={v.description}
-              className="font-mono font-bold text-[#845326] bg-[#fff2e5] hover:bg-[#fde7d4] px-1.5 py-0.5 rounded transition cursor-pointer"
-            >
-              {v.code} (-{v.discountPercent}%)
-            </button>
-          ))}
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={onOpenModal}
+                className="px-2.5 py-1 text-[11px] font-bold text-[#845326] hover:bg-[#FAF0E6] rounded-lg transition-colors cursor-pointer"
+              >
+                {"Đổi mã".normalize("NFC")}
+              </button>
+              <button
+                type="button"
+                onClick={onRemove}
+                aria-label={"Gỡ mã".normalize("NFC")}
+                className="p-1.5 rounded-lg hover:bg-stone-200 text-stone-400 hover:text-stone-700 transition-colors cursor-pointer"
+              >
+                <X size={15} strokeWidth={2.2} />
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -520,6 +619,7 @@ function SummaryCard({
   itemCount,
   discount,
   promoCode,
+  matchedVoucher,
   onCheckout,
   isLoading,
   error,
@@ -528,6 +628,7 @@ function SummaryCard({
   itemCount: number;
   discount: number;
   promoCode: string | null;
+  matchedVoucher?: VoucherItem | null;
   onCheckout: () => void;
   isLoading?: boolean;
   error?: string | null;
@@ -540,11 +641,35 @@ function SummaryCard({
   const total = Math.floor((afterDiscount + vat + ECO_FEE) / 1000) * 1000;
   const loyaltyPoints = Math.floor(total / 1000);
 
+  const isUnderMin = Boolean(
+    promoCode &&
+      matchedVoucher?.minOrderAmount &&
+      subtotal < matchedVoucher.minOrderAmount
+  );
+  const missingAmount = isUnderMin
+    ? (matchedVoucher?.minOrderAmount || 0) - subtotal
+    : 0;
+
   return (
     <div className="bg-white rounded-2xl border border-stone-100 shadow-xs p-5 flex flex-col gap-4">
       <span className="font-headline text-[14px] font-bold text-[#1d1b19]">
         {"Tóm tắt thanh toán".normalize("NFC")}
       </span>
+
+      {/* Warning if promo code is active but min order not reached */}
+      {isUnderMin && matchedVoucher && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs flex items-start gap-2.5">
+          <AlertCircle size={15} className="shrink-0 text-amber-600 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-bold leading-tight">
+              Mã <span className="font-mono">{promoCode}</span> chưa đủ điều kiện
+            </p>
+            <p className="text-[11px] text-amber-800 mt-0.5">
+              Yêu cầu đơn tối thiểu {vnd(matchedVoucher.minOrderAmount || 0)}. Mua thêm <strong>{vnd(missingAmount)}</strong> để được giảm {matchedVoucher.discountPercent}%!
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Line items */}
       <div className="flex flex-col gap-2.5 text-[13px] font-body">
@@ -760,10 +885,12 @@ export default function CartPage() {
     cartCount,
     cartTotal,
     addItem,
+    appliedPromo,
+    setAppliedPromo,
   } = useCartStore();
 
   const [hydrated, setHydrated] = useState(false);
-  const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
+  const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
   const [availableVouchers, setAvailableVouchers] = useState<VoucherItem[]>([
     { code: "BREWCOZY", description: "Giờ vàng -15%", discountPercent: 15, minOrderAmount: 0 },
     { code: "BREW10", description: "Ưu đãi thành viên -10%", discountPercent: 10, minOrderAmount: 0 },
@@ -1079,14 +1206,19 @@ export default function CartPage() {
                 appliedCode={appliedPromo}
                 appliedPercent={Math.round(discountRate * 100)}
                 vouchers={availableVouchers}
+                matchedVoucher={matchedVoucher}
+                subtotal={subtotal}
+                discountAmount={discountAmount}
                 onApply={(code) => setAppliedPromo(code)}
                 onRemove={() => setAppliedPromo(null)}
+                onOpenModal={() => setIsVoucherModalOpen(true)}
               />
               <SummaryCard
                 subtotal={subtotal}
                 itemCount={count}
                 discount={discountAmount}
                 promoCode={appliedPromo}
+                matchedVoucher={matchedVoucher}
                 onCheckout={handleCheckout}
                 isLoading={checkoutLoading}
                 error={checkoutError}
@@ -1245,6 +1377,17 @@ export default function CartPage() {
           </button>
         </div>
       )}
+
+      {/* ── Voucher Modal (Xem tất cả & Đổi Hạt Vàng) ── */}
+      <VoucherModal
+        isOpen={isVoucherModalOpen}
+        onClose={() => setIsVoucherModalOpen(false)}
+        vouchers={availableVouchers}
+        appliedCode={appliedPromo}
+        subtotal={subtotal}
+        onSelectVoucher={(code) => setAppliedPromo(code)}
+        onRemoveVoucher={() => setAppliedPromo(null)}
+      />
 
       {/* Footer */}
       <Footer />

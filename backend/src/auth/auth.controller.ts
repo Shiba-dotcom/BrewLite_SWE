@@ -43,5 +43,22 @@ export class AuthController {
   getProfile(@Request() req: AuthRequest) {
     return this.authService.getProfile(req.user.userId);
   }
+
+  /**
+   * POST /auth/redeem-points — Đổi điểm Hạt Vàng lấy Voucher / Quà tặng (trừ điểm)
+   * Yêu cầu JWT Bearer Token
+   */
+  @UseGuards(JwtAuthGuard)
+  @Post('redeem-points')
+  redeemPoints(
+    @Request() req: AuthRequest,
+    @Body() body: { points: number; description?: string },
+  ) {
+    return this.authService.redeemPoints(
+      req.user.userId,
+      Number(body?.points || 0),
+      body?.description,
+    );
+  }
 }
 

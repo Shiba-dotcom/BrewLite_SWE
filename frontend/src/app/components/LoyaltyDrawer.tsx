@@ -2,7 +2,11 @@
 
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { useAuthStore } from "../store/authStore";
+import { useCartStore } from "../store/cartStore";
+import VoucherModal from "./VoucherModal";
+import type { VoucherItem } from "../cart/page";
 
 interface LoyaltyDrawerProps {
   isOpen: boolean;
@@ -10,13 +14,33 @@ interface LoyaltyDrawerProps {
 }
 
 export default function LoyaltyDrawer({ isOpen, onClose }: LoyaltyDrawerProps) {
-  const { user, logout, refreshProfile } = useAuthStore();
+  const router = useRouter();
+  const { user, logout, refreshProfile, redeemPoints, isAuthenticated } = useAuthStore();
+  const { setAppliedPromo, appliedPromo, cartTotal } = useCartStore();
+
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [redeemedToast, setRedeemedToast] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
+  const [isRedeeming, setIsRedeeming] = useState(false);
+  const [vouchers, setVouchers] = useState<VoucherItem[]>([
+    { code: "BREWCOZY", description: "Giảm 15% toàn bộ menu", discountPercent: 15, minOrderAmount: 0 },
+    { code: "BREW10", description: "Ưu đãi thành viên -10%", discountPercent: 10, minOrderAmount: 0 },
+    { code: "BREW20", description: "Giảm 20% đơn từ 50k", discountPercent: 20, minOrderAmount: 50000 },
+    { code: "BREW50", description: "Siêu ưu đãi VIP -50%", discountPercent: 50, minOrderAmount: 80000 },
+  ]);
 
   useEffect(() => {
     setMounted(true);
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    fetch(`${apiBase}/inventory/pricing-config`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.vouchers) && data.vouchers.length > 0) {
+          setVouchers(data.vouchers);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -53,13 +77,40 @@ export default function LoyaltyDrawer({ isOpen, onClose }: LoyaltyDrawerProps) {
     }
   };
 
-  const handleRedeem = (voucherTitle: string, cost: number) => {
-    if (points < cost) {
-      alert(`Bạn cần thêm ${cost - points} Hạt Vàng để đổi ưu đãi này!`);
+  const handleUseVoucher = (code: string) => {
+    setAppliedPromo(code);
+    onClose();
+    router.push("/cart");
+  };
+
+  const handleRedeem = async (voucherTitle: string, code: string, cost: number) => {
+    if (!isAuthenticated) {
+      alert("Vui lòng đăng nhập để đổi Hạt Vàng lấy Voucher!");
       return;
     }
-    setRedeemedToast(`Đã đổi thành công "${voucherTitle}"!`);
-    setTimeout(() => setRedeemedToast(null), 3000);
+    if (points < cost) {
+      alert(`Bạn cần thêm ${cost - points} Hạt Vàng để đổi ưu đãi này! (Hiện có ${points} Hạt Vàng)`);
+      return;
+    }
+    setIsRedeeming(true);
+    try {
+      const res = await redeemPoints(cost, `Đổi ${voucherTitle}`);
+      if (res.success) {
+        setAppliedPromo(code);
+        setRedeemedToast(`Đã trừ ${cost} Hạt Vàng & áp dụng mã ${code} vào giỏ hàng!`);
+        setTimeout(() => {
+          setRedeemedToast(null);
+          onClose();
+          router.push("/cart");
+        }, 1200);
+      } else {
+        alert(res.message || "Đổi ưu đãi không thành công.");
+      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Đã xảy ra lỗi khi kết nối máy chủ");
+    } finally {
+      setIsRedeeming(false);
+    }
   };
 
   const initials = user?.fullName
@@ -219,9 +270,14 @@ export default function LoyaltyDrawer({ isOpen, onClose }: LoyaltyDrawerProps) {
                 <h3 className="font-headline font-bold text-sm text-[#1D1B19]">
                   Ưu đãi của bạn
                 </h3>
-                <span className="text-[11px] font-semibold text-[#845326] hover:underline cursor-pointer">
-                  Xem tất cả
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsVoucherModalOpen(true)}
+                  className="text-[11px] font-semibold text-[#845326] hover:underline cursor-pointer flex items-center gap-0.5"
+                >
+                  <span>Xem tất cả</span>
+                  <span className="material-symbols-outlined text-[13px]">chevron_right</span>
+                </button>
               </div>
 
               <div className="space-y-2.5">
@@ -247,10 +303,10 @@ export default function LoyaltyDrawer({ isOpen, onClose }: LoyaltyDrawerProps) {
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleCopy("BREWCOZY")}
-                    className="shrink-0 px-3 py-1.5 rounded-full bg-[#2C1810] hover:bg-[#3C2218] text-white text-[11px] font-bold transition-all cursor-pointer"
+                    onClick={() => handleUseVoucher("BREWCOZY")}
+                    className="shrink-0 px-3 py-1.5 rounded-full bg-[#2C1810] hover:bg-[#3C2218] text-white text-[11px] font-bold transition-all cursor-pointer shadow-xs active:scale-95"
                   >
-                    {copiedCode === "BREWCOZY" ? "Đã chép!" : "Dùng ngay"}
+                    Dùng ngay
                   </button>
                 </div>
 
@@ -271,13 +327,11 @@ export default function LoyaltyDrawer({ isOpen, onClose }: LoyaltyDrawerProps) {
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      handleCopy("BREW10");
-                      handleRedeem("Giảm 10% đơn hàng (BREW10)", 20);
-                    }}
-                    className="shrink-0 px-3 py-1.5 rounded-full bg-[#FAF0E6] hover:bg-[#F3E5D8] text-[#845326] border border-[#D97736]/30 text-[11px] font-bold transition-all cursor-pointer"
+                    disabled={isRedeeming}
+                    onClick={() => handleRedeem("Giảm 10% đơn hàng", "BREW10", 20)}
+                    className="shrink-0 px-3 py-1.5 rounded-full bg-[#FAF0E6] hover:bg-[#F3E5D8] text-[#845326] border border-[#D97736]/30 text-[11px] font-bold transition-all cursor-pointer disabled:opacity-50 active:scale-95"
                   >
-                    {copiedCode === "BREW10" ? "Đã chép!" : "Đổi ngay (20đ)"}
+                    {isRedeeming ? "Đang đổi..." : "Đổi ngay (20đ)"}
                   </button>
                 </div>
 
@@ -298,10 +352,11 @@ export default function LoyaltyDrawer({ isOpen, onClose }: LoyaltyDrawerProps) {
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleRedeem("Miễn phí Topping Foam Muối Biển", 15)}
-                    className="shrink-0 px-3 py-1.5 rounded-full bg-[#FAF0E6] hover:bg-[#F3E5D8] text-[#845326] border border-[#D97736]/30 text-[11px] font-bold transition-all cursor-pointer"
+                    disabled={isRedeeming}
+                    onClick={() => handleRedeem("Miễn phí Topping Foam Muối Biển", "FREEFOAM", 15)}
+                    className="shrink-0 px-3 py-1.5 rounded-full bg-[#FAF0E6] hover:bg-[#F3E5D8] text-[#845326] border border-[#D97736]/30 text-[11px] font-bold transition-all cursor-pointer disabled:opacity-50 active:scale-95"
                   >
-                    Đổi (15đ)
+                    {isRedeeming ? "Đang đổi..." : "Đổi (15đ)"}
                   </button>
                 </div>
 
@@ -387,6 +442,28 @@ export default function LoyaltyDrawer({ isOpen, onClose }: LoyaltyDrawerProps) {
           </div>
         </aside>
       </div>
+
+      {/* ── Voucher Modal from Loyalty Drawer ── */}
+      <VoucherModal
+        isOpen={isVoucherModalOpen}
+        onClose={() => setIsVoucherModalOpen(false)}
+        vouchers={vouchers}
+        appliedCode={appliedPromo}
+        subtotal={cartTotal()}
+        onSelectVoucher={(code) => {
+          setAppliedPromo(code);
+          setIsVoucherModalOpen(false);
+          onClose();
+          router.push("/cart");
+        }}
+        onRemoveVoucher={() => setAppliedPromo(null)}
+        onRedeemSuccess={(code) => {
+          setAppliedPromo(code);
+          setIsVoucherModalOpen(false);
+          onClose();
+          router.push("/cart");
+        }}
+      />
     </div>,
     document.body,
   );
