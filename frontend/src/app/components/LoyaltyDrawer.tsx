@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "../store/authStore";
@@ -32,7 +32,13 @@ export default function LoyaltyDrawer({ isOpen, onClose }: LoyaltyDrawerProps) {
 
   useEffect(() => {
     setMounted(true);
-    refreshProfile?.();
+  }, []);
+
+  const vouchersKey = useMemo(() => {
+    return (user?.vouchers || []).map((v) => `${v.code}:${v.quantity}`).join(",");
+  }, [user?.vouchers]);
+
+  useEffect(() => {
     const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
     fetch(`${apiBase}/inventory/pricing-config`)
       .then((res) => (res.ok ? res.json() : null))
@@ -69,7 +75,7 @@ export default function LoyaltyDrawer({ isOpen, onClose }: LoyaltyDrawerProps) {
         setVouchers(merged);
       })
       .catch(() => {});
-  }, [user?.vouchers]);
+  }, [vouchersKey]);
 
   useEffect(() => {
     if (isOpen) {

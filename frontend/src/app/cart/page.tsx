@@ -570,11 +570,6 @@ function PromoCard({
                   <span className="text-xs font-bold text-[#845326]">
                     -{appliedPercent ?? 15}%
                   </span>
-                  {matchedVoucher && (matchedVoucher.quantity || 1) > 1 && (
-                    <span className="text-[10px] bg-amber-100 text-amber-900 font-extrabold px-1.5 py-0.2 rounded border border-amber-300">
-                      Đang dùng 1/{matchedVoucher.quantity} vé
-                    </span>
-                  )}
                 </div>
                 {isUnderMin ? (
                   <p className="text-[11px] text-amber-700 font-medium font-body mt-0.5 flex items-center gap-1">
@@ -586,11 +581,6 @@ function PromoCard({
                     {discountAmount && discountAmount > 0
                       ? `Đã giảm -${vnd(discountAmount)} vào đơn hàng`
                       : "Đã kích hoạt ưu đãi vào đơn"}
-                    {matchedVoucher && (matchedVoucher.quantity || 1) > 1 && (
-                      <span className="text-amber-800 ml-1">
-                        (Còn {matchedVoucher.quantity! - 1} mã cho đơn sau)
-                      </span>
-                    )}
                   </p>
                 )}
               </div>
@@ -921,6 +911,13 @@ export default function CartPage() {
   useEffect(() => {
     setHydrated(true);
     refreshProfile?.();
+  }, []);
+
+  const vouchersKey = useMemo(() => {
+    return (user?.vouchers || []).map((v) => `${v.code}:${v.quantity}`).join(",");
+  }, [user?.vouchers]);
+
+  useEffect(() => {
     const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
     fetch(`${apiBase}/inventory/pricing-config`)
       .then((res) => (res.ok ? res.json() : null))
@@ -959,7 +956,7 @@ export default function CartPage() {
       .catch(() => {
         // Fallback to static vouchers
       });
-  }, [user?.vouchers]);
+  }, [vouchersKey]);
 
   const handleRedeemSuccess = (code: string, newQty?: number) => {
     setAvailableVouchers((prev) => {

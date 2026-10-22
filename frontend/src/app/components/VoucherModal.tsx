@@ -300,18 +300,11 @@ export default function VoucherModal({
                           </p>
 
                           {/* Hiển thị rõ số lượng khả dụng trên từng thẻ voucher */}
-                          <div className="mt-2 flex items-center gap-2 flex-wrap">
+                          <div className="mt-2 flex items-center gap-2">
                             <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#845326] bg-[#FAF0E6] px-2.5 py-0.5 rounded-md border border-[#845326]/20 shadow-2xs">
                               <Tag size={12} className="text-[#845326]" />
                               <span>{`Số lượng khả dụng: ${qty}`.normalize("NFC")}</span>
                             </span>
-                            {isApplied && (
-                              <span className="text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-medium">
-                                {qty > 1
-                                  ? `(Đang dùng 1 vé, còn lại ${qty - 1})`.normalize("NFC")
-                                  : "(Đang áp dụng cho đơn này)".normalize("NFC")}
-                              </span>
-                            )}
                           </div>
                         </div>
 
@@ -388,13 +381,9 @@ export default function VoucherModal({
                   </div>
                 </div>
 
-                {!isAuthenticated ? (
+                {!isAuthenticated && (
                   <span className="text-xs text-amber-300 font-bold bg-amber-400/20 px-2.5 py-1 rounded-full">
                     Chưa đăng nhập
-                  </span>
-                ) : (
-                  <span className="text-[11px] text-emerald-300 font-semibold bg-emerald-500/20 px-2.5 py-1 rounded-full">
-                    Đổi tức thì
                   </span>
                 )}
               </div>
@@ -410,13 +399,26 @@ export default function VoucherModal({
                   return (
                     <div
                       key={reward.id}
-                      className="p-3.5 rounded-2xl bg-white border border-stone-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs hover:border-[#845326]/40 transition-all"
+                      className="relative rounded-2xl border border-stone-200 bg-white transition-all overflow-hidden flex flex-col sm:flex-row items-stretch shadow-2xs hover:border-[#845326]/50"
                     >
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-[#FAF0E6] text-[#845326] flex items-center justify-center font-bold text-sm shrink-0">
-                          -{reward.discountPercent}%
-                        </div>
-                        <div className="min-w-0">
+                      {/* Left Badge: Discount % (đồng bộ với mục Mã có sẵn theo ảnh) */}
+                      <div
+                        className="sm:w-28 p-3.5 flex sm:flex-col items-center justify-between sm:justify-center text-center shrink-0 border-b sm:border-b-0 sm:border-r border-dashed bg-gradient-to-br from-[#2c1810] to-[#45271d] text-white border-stone-200"
+                      >
+                        <span className="text-[10px] uppercase tracking-wider font-bold opacity-80">
+                          GIẢM
+                        </span>
+                        <span className="font-headline text-2xl sm:text-3xl font-extrabold leading-none my-1">
+                          {reward.discountPercent}%
+                        </span>
+                        <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-white/20 sm:mt-1">
+                          {reward.code}
+                        </span>
+                      </div>
+
+                      {/* Middle Details */}
+                      <div className="flex-1 p-3.5 flex flex-col justify-between gap-2 min-w-0">
+                        <div>
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <h4 className="font-bold text-xs text-[#1D1B19] truncate">
                               {reward.title}
@@ -430,39 +432,43 @@ export default function VoucherModal({
                               </span>
                             )}
                           </div>
-                          <p className="text-[11px] text-stone-500 mt-0.5">
-                            Chi phí:{" "}
-                            <strong className="text-[#845326]">
-                              {reward.pointCost} Hạt Vàng
-                            </strong>{" "}
-                            • Mã: <span className="font-mono">{reward.code}</span>
-                            {ownedQty > 0 && (
-                              <span className="text-[10px] text-amber-700 font-semibold block sm:inline sm:ml-2">
-                                (Đổi thêm sẽ cộng dồn x{ownedQty + 1})
+
+                          <div className="mt-1 space-y-0.5 text-[11px] text-stone-500 font-body">
+                            <p>
+                              Chi phí:{" "}
+                              <strong className="text-[#845326] font-bold">
+                                {reward.pointCost} Hạt Vàng
+                              </strong>
+                            </p>
+                            <p className="flex items-center gap-1">
+                              <span>Mã:</span>
+                              <span className="font-mono font-bold text-[#1D1B19] bg-stone-100 px-1.5 py-0.5 rounded text-[10px]">
+                                {reward.code}
                               </span>
-                            )}
-                          </p>
+                            </p>
+                          </div>
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        disabled={!canAfford || isRedeeming}
-                        onClick={() => handleRedeemReward(reward)}
-                        className={`w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                          canAfford
-                            ? "bg-[#845326] hover:bg-[#6e431d] text-white shadow-2xs active:scale-95 cursor-pointer"
-                            : "bg-stone-100 text-stone-400 cursor-not-allowed"
-                        }`}
-                      >
-                        {isRedeeming
-                          ? "Đang đổi..."
-                          : canAfford
-                          ? ownedQty > 0
-                            ? `Đổi thêm (+1) (-${reward.pointCost}đ)`
-                            : `Đổi (-${reward.pointCost}đ)`
-                          : `Thiếu ${reward.pointCost - points}đ`}
-                      </button>
+                      {/* Right Button */}
+                      <div className="p-3.5 sm:pl-0 flex items-center justify-end shrink-0">
+                        <button
+                          type="button"
+                          disabled={!canAfford || isRedeeming}
+                          onClick={() => handleRedeemReward(reward)}
+                          className={`w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                            canAfford
+                              ? "bg-[#845326] hover:bg-[#6e431d] text-white shadow-2xs active:scale-95 cursor-pointer"
+                              : "bg-stone-100 text-stone-400 cursor-not-allowed"
+                          }`}
+                        >
+                          {isRedeeming
+                            ? "Đang đổi..."
+                            : canAfford
+                            ? `Đổi (-${reward.pointCost}đ)`
+                            : `Thiếu ${reward.pointCost - points}đ`}
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
