@@ -42,13 +42,20 @@ enum Role {
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model Product {
-  id          Int      @id @default(autoincrement())
-  name        String
-  description String?
-  imageUrl    String?
-  basePrice   Float
-  createdAt   DateTime @default(now())
-  recipes     Recipe[]
+  id              Int      @id @default(autoincrement())
+  name            String
+  description     String?
+  imageUrl        String?
+  basePrice       Float
+  sizeUpchargeM   Float?   // Ghi đè phụ thu Size M riêng cho món (null = dùng giá chuẩn toàn quán)
+  sizeUpchargeL   Float?   // Ghi đè phụ thu Size L riêng cho món (null = dùng giá chuẩn toàn quán)
+  category        String   @default("vietnamese") // vietnamese | espresso | tea | coldbrew | bakery
+  tag             String?  @default("Phổ biến")
+  isActive        Boolean  @default(true)         // Hiển thị trên trang /menu khách hàng
+  isSoldOutManual Boolean  @default(false)        // Báo hết hàng thủ công bởi Admin
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+  recipes         Recipe[]
 }
 
 model Ingredient {
@@ -58,11 +65,30 @@ model Ingredient {
   unit           String
   stock          Float           @default(0)
   minThreshold   Float           @default(100)
+  costPerUnit    Float           @default(0) // Đơn giá nhập (VNĐ / 1 đơn vị g, ml, chiếc...)
   version        Int             @default(0) // Optimistic Locking chống bán vượt tồn kho
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   recipes        Recipe[]
   toppingRecipes ToppingRecipe[]
+  logs           InventoryLog[]
+}
+
+model InventoryLog {
+  id             Int        @id @default(autoincrement())
+  ingredientId   Int
+  ingredientName String
+  unit           String
+  type           String     @default("RESTOCK") // RESTOCK | ADJUST
+  changeAmount   Float
+  previousStock  Float
+  newStock       Float
+  unitCost       Float      @default(0)
+  totalCost      Float      @default(0)
+  note           String?
+  performedBy    String?
+  createdAt      DateTime   @default(now())
+  ingredient     Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
 }
 
 model Recipe {
@@ -79,13 +105,35 @@ model Recipe {
 
 model ToppingRecipe {
   id           Int        @id @default(autoincrement())
-  toppingId    String     // boba, cream, jelly, shot
+  toppingId    String     // boba, cream, jelly, shot...
   toppingName  String
+  subtext      String?    @default("Topping thơm ngon chuẩn vị")
+  price        Float      @default(8000)
+  isActive     Boolean    @default(true)
   ingredientId Int
   amount       Float
   ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
 
   @@unique([toppingId, ingredientId])
+}
+
+model StoreSetting {
+  key         String   @id
+  value       String
+  description String?
+  updatedAt   DateTime @default(now()) @updatedAt
+}
+
+model DiscountCode {
+  id              Int      @id @default(autoincrement())
+  code            String   @unique
+  description     String?
+  discountPercent Float
+  minOrderAmount  Float    @default(0)
+  isActive        Boolean  @default(true)
+  usageCount      Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
 }
 
 model User {
