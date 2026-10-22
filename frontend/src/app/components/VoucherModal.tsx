@@ -21,9 +21,9 @@ interface RedeemableReward {
   code: string;
   title: string;
   discountPercent: number;
+  maxDiscountAmount: number;
   pointCost: number;
   minOrderAmount: number;
-  badge: string;
 }
 
 const REDEEMABLE_REWARDS: RedeemableReward[] = [
@@ -32,29 +32,80 @@ const REDEEMABLE_REWARDS: RedeemableReward[] = [
     code: "BREW10",
     title: "Voucher Giảm 10% Toàn Đơn",
     discountPercent: 10,
-    pointCost: 20,
+    maxDiscountAmount: 15000,
+    pointCost: 50,
     minOrderAmount: 0,
-    badge: "Phổ biến",
   },
   {
     id: "r_brew20",
     code: "BREW20",
-    title: "Voucher Giảm 20% Đơn Từ 50k",
+    title: "Voucher Giảm 20% Đơn Từ 60k",
     discountPercent: 20,
-    pointCost: 40,
-    minOrderAmount: 50000,
-    badge: "Tiết kiệm",
+    maxDiscountAmount: 25000,
+    pointCost: 100,
+    minOrderAmount: 60000,
   },
   {
     id: "r_brew50",
     code: "BREW50",
     title: "Siêu Voucher Giảm 50% VIP",
     discountPercent: 50,
-    pointCost: 80,
-    minOrderAmount: 80000,
-    badge: "Đặc quyền VIP",
+    maxDiscountAmount: 60000,
+    pointCost: 250,
+    minOrderAmount: 120000,
   },
 ];
+
+export function getMinOrderAmount(v: VoucherItem): number {
+  const code = (v.code || "").toUpperCase();
+  if (code === "BREW20") return 60000;
+  if (code === "BREW50") return 120000;
+  if (code === "BREW10" || code === "BREWLITE10") return 0;
+  return v.minOrderAmount || 0;
+}
+
+export function calculateMaxDiscount(
+  code: string,
+  discountPercent: number,
+  explicitMax?: number
+): number {
+  if (explicitMax && explicitMax > 0) return explicitMax;
+  const upper = (code || "").toUpperCase();
+  if (upper === "BREW10" || upper === "BREWLITE10") return 15000;
+  if (upper === "BREW20" || upper === "WELCOME20") return 25000;
+  if (upper === "BREW50") return 60000;
+  if (upper === "BREWCOZY") return 20000; // 15% Giờ vàng
+
+  // Tuyến tính theo các mốc chuẩn BREW10 (10% -> 15k), BREW20 (20% -> 25k), BREW50 (50% -> 60k)
+  let max = 15000;
+  if (discountPercent <= 10) {
+    max = 15000;
+  } else if (discountPercent <= 20) {
+    max = 15000 + (discountPercent - 10) * 1000;
+  } else {
+    max = 25000 + (discountPercent - 20) * (35000 / 30);
+  }
+  return Math.round(max / 1000) * 1000;
+}
+
+export function getVoucherTitle(v: VoucherItem): string {
+  const code = (v.code || "").toUpperCase();
+  if (code === "BREW10") return "Voucher Giảm 10% Toàn Đơn";
+  if (code === "BREW20") return "Voucher Giảm 20% Đơn Từ 60k";
+  if (code === "BREW50") return "Siêu Voucher Giảm 50% VIP";
+  if (code === "BREWCOZY") return "Ưu đãi Giờ vàng giảm 15% toàn menu";
+  if (code === "BREWLITE10") return "Voucher Giảm 10% Chào Mừng";
+  if (code === "WELCOME20") return "Voucher Giảm 20% Khách Hàng Mới";
+
+  if (v.description) {
+    let text = v.description;
+    if (text.includes("50")) {
+      text = text.replace(/đơn từ 50\.?000đ?/gi, "đơn từ 60.000đ").replace(/đơn từ 50k/gi, "đơn từ 60k");
+    }
+    return text;
+  }
+  return `Ưu đãi giảm ${v.discountPercent}%`;
+}
 
 export default function VoucherModal({
   isOpen,
@@ -81,7 +132,7 @@ export default function VoucherModal({
   };
 
   const handleApplyVoucher = (v: VoucherItem) => {
-    const min = v.minOrderAmount || 0;
+    const min = getMinOrderAmount(v);
     if (subtotal < min) {
       const missing = min - subtotal;
       showToast(
@@ -240,7 +291,9 @@ export default function VoucherModal({
                 </div>
               ) : (
                 vouchers.map((v) => {
-                  const min = v.minOrderAmount || 0;
+                  const min = getMinOrderAmount(v);
+                  const maxDiscount = calculateMaxDiscount(v.code, v.discountPercent, v.maxDiscountAmount);
+                  const title = getVoucherTitle(v);
                   const isEligible = subtotal >= min;
                   const isApplied = appliedCode === v.code;
                   const missingAmount = Math.max(0, min - subtotal);
@@ -284,7 +337,7 @@ export default function VoucherModal({
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <h4 className="font-bold text-xs text-[#1D1B19] truncate">
-                              {v.description || `Ưu đãi giảm ${v.discountPercent}%`}
+                              {title}
                             </h4>
                             {isApplied && (
                               <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
@@ -293,11 +346,19 @@ export default function VoucherModal({
                             )}
                           </div>
 
-                          <p className="text-[11px] text-stone-500 mt-1 font-body">
-                            {min > 0
-                              ? `Áp dụng cho đơn từ ${min.toLocaleString("vi-VN")}đ`
-                              : "Áp dụng cho mọi giá trị đơn hàng"}
-                          </p>
+                          <div className="mt-1 space-y-0.5 text-[11px] text-stone-500 font-body">
+                            <p>
+                              {min > 0
+                                ? `Áp dụng cho đơn từ ${min.toLocaleString("vi-VN")}đ`
+                                : "Áp dụng cho mọi giá trị đơn hàng"}
+                            </p>
+                            <p>
+                              Giảm tối đa:{" "}
+                              <strong className="text-stone-700 font-semibold">
+                                {maxDiscount.toLocaleString("vi-VN")}đ
+                              </strong>
+                            </p>
+                          </div>
 
                           {/* Hiển thị rõ số lượng khả dụng trên từng thẻ voucher */}
                           <div className="mt-2 flex items-center gap-2">
@@ -419,33 +480,38 @@ export default function VoucherModal({
                       {/* Middle Details */}
                       <div className="flex-1 p-3.5 flex flex-col justify-between gap-2 min-w-0">
                         <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
+                          <div>
                             <h4 className="font-bold text-xs text-[#1D1B19] truncate">
                               {reward.title}
                             </h4>
-                            <span className="text-[9px] bg-amber-100 text-amber-900 font-bold px-1.5 py-0.2 rounded font-mono">
-                              {reward.badge}
-                            </span>
                             {ownedQty > 0 && (
-                              <span className="text-[9px] bg-[#FEF3C7] text-[#92400E] font-bold px-1.5 py-0.2 rounded border border-[#FDE68A]">
-                                Đang có: x{ownedQty}
-                              </span>
+                              <div className="mt-1">
+                                <span className="inline-flex items-center text-[10px] font-bold text-[#92400E] bg-[#FEF3C7] px-2 py-0.5 rounded-md border border-[#FDE68A]">
+                                  Đang có: x{ownedQty}
+                                </span>
+                              </div>
                             )}
                           </div>
 
-                          <div className="mt-1 space-y-0.5 text-[11px] text-stone-500 font-body">
+                          <div className="mt-1.5 space-y-0.5 text-[11px] text-stone-500 font-body">
                             <p>
                               Chi phí:{" "}
                               <strong className="text-[#845326] font-bold">
                                 {reward.pointCost} Hạt Vàng
                               </strong>
                             </p>
-                            <p className="flex items-center gap-1">
-                              <span>Mã:</span>
-                              <span className="font-mono font-bold text-[#1D1B19] bg-stone-100 px-1.5 py-0.5 rounded text-[10px]">
+                            <p>
+                              Giảm tối đa:{" "}
+                              <strong className="text-stone-700 font-semibold">
+                                {reward.maxDiscountAmount.toLocaleString("vi-VN")}đ
+                              </strong>
+                            </p>
+                            <div className="flex items-center gap-1.5 leading-none pt-0.5">
+                              <span className="leading-none text-[11px] text-stone-500">Mã:</span>
+                              <span className="inline-flex items-center justify-center font-mono font-bold text-[#1D1B19] bg-stone-100 px-1.5 py-0.5 rounded text-[10px] leading-none border border-stone-200/60">
                                 {reward.code}
                               </span>
-                            </p>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -465,8 +531,8 @@ export default function VoucherModal({
                           {isRedeeming
                             ? "Đang đổi..."
                             : canAfford
-                            ? `Đổi (-${reward.pointCost}đ)`
-                            : `Thiếu ${reward.pointCost - points}đ`}
+                            ? `Đổi (-${reward.pointCost} Hạt)`
+                            : `Thiếu ${reward.pointCost - points} Hạt`}
                         </button>
                       </div>
                     </div>

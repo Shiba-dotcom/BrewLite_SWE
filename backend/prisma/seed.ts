@@ -495,16 +495,34 @@ async function main() {
     },
     {
       code: 'BREW10',
-      description: 'Ưu đãi thành viên giảm 10% đơn hàng',
+      description: 'Voucher Giảm 10% Toàn Đơn',
       discountPercent: 10,
       minOrderAmount: 0,
+      isActive: true,
+    },
+    {
+      code: 'BREW20',
+      description: 'Voucher Giảm 20% Đơn Từ 60k',
+      discountPercent: 20,
+      minOrderAmount: 60000,
+      isActive: true,
+    },
+    {
+      code: 'BREW50',
+      description: 'Siêu Voucher Giảm 50% VIP',
+      discountPercent: 50,
+      minOrderAmount: 120000,
       isActive: true,
     },
   ];
   for (const v of defaultVouchers) {
     await prisma.discountCode.upsert({
       where: { code: v.code },
-      update: {},
+      update: {
+        description: v.description,
+        minOrderAmount: v.minOrderAmount,
+        discountPercent: v.discountPercent,
+      },
       create: v,
     });
   }

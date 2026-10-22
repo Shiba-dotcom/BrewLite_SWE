@@ -207,15 +207,35 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     if (dto.discountCode && dto.discountCode.trim()) {
       const code = dto.discountCode.trim().toUpperCase();
       const DISCOUNT_RATES: Record<string, number> = {
-        BREW10: 0.1, // Giảm 10%
+        BREW10: 0.1, // Giảm 10% (Tối đa 15.000đ, Đơn tối thiểu 0đ)
         BREWLITE10: 0.1, // Giảm 10%
         BREWCOZY: 0.15, // Giảm 15% (Khách hàng thân thiết)
-        BREW20: 0.2, // Giảm 20%
+        BREW20: 0.2, // Giảm 20% (Tối đa 25.000đ, Đơn tối thiểu 60.000đ)
         WELCOME20: 0.2, // Giảm 20%
-        BREW50: 0.5, // Giảm 50%
+        BREW50: 0.5, // Giảm 50% (Tối đa 60.000đ, Đơn tối thiểu 120.000đ)
+      };
+
+      const MIN_ORDERS: Record<string, number> = {
+        BREW10: 0,
+        BREWLITE10: 0,
+        BREWCOZY: 0,
+        BREW20: 60000,
+        WELCOME20: 50000,
+        BREW50: 120000,
+      };
+
+      const MAX_DISCOUNTS: Record<string, number> = {
+        BREW10: 15000,
+        BREWLITE10: 15000,
+        BREWCOZY: 25000,
+        BREW20: 25000,
+        WELCOME20: 25000,
+        BREW50: 60000,
       };
 
       let matchedRate: number | null = null;
+      let minOrderReq = MIN_ORDERS[code] ?? 0;
+      const maxDiscountCap = MAX_DISCOUNTS[code] ?? Infinity;
 
       if ((this.prisma as any).discountCode?.findUnique) {
         const dbVoucher = await (this.prisma as any).discountCode.findUnique({
@@ -227,12 +247,8 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
               `Mã giảm giá "${code}" hiện đang tạm ngưng áp dụng.`,
             );
           }
-          if (rawSubtotal < Number(dbVoucher.minOrderAmount || 0)) {
-            throw new BadRequestException(
-              `Mã "${code}" yêu cầu đơn hàng tối thiểu ${Number(
-                dbVoucher.minOrderAmount,
-              ).toLocaleString('vi-VN')}đ.`,
-            );
+          if (dbVoucher.minOrderAmount) {
+            minOrderReq = Math.max(minOrderReq, Number(dbVoucher.minOrderAmount));
           }
           matchedRate = Number(dbVoucher.discountPercent || 0) / 100;
           await (this.prisma as any).discountCode
@@ -254,7 +270,14 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         );
       }
 
-      discountAmount = Math.round(rawSubtotal * matchedRate);
+      if (rawSubtotal < minOrderReq) {
+        throw new BadRequestException(
+          `Mã "${code}" yêu cầu đơn hàng tối thiểu ${minOrderReq.toLocaleString('vi-VN')}đ.`,
+        );
+      }
+
+      const rawDiscount = Math.round(rawSubtotal * matchedRate);
+      discountAmount = Math.min(rawDiscount, maxDiscountCap);
       appliedDiscountCode = code;
     }
 

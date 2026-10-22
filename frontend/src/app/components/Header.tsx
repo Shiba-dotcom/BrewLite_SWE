@@ -411,80 +411,17 @@ export default function Header({
                   ⭐ {(user.loyaltyPoints ?? 0).toLocaleString("vi-VN")} Hạt Vàng
                 </span>
               </button>
-              <div className="flex items-center gap-2 group relative">
+              <div className="flex items-center gap-2">
                 {/* Avatar circle với initials */}
                 <button
                   type="button"
                   onClick={() => setIsLoyaltyDrawerOpen(true)}
                   className="w-8 h-8 rounded-full bg-[#2c1810] hover:bg-[#3d2318] flex items-center justify-center ring-2 ring-[#ede7e3] cursor-pointer transition-transform active:scale-95"
-                  title="Tài khoản & Điểm tích lũy của tôi"
                 >
                   <span className="text-[11px] font-bold text-white font-body">
                     {initials}
                   </span>
                 </button>
-                {/* Dropdown on hover: Quick menu */}
-                <div className="absolute right-0 top-10 bg-white rounded-2xl shadow-lg border border-[#ede7e3] p-3 min-w-[220px] opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity z-50">
-                  <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <p className="text-[13px] font-semibold text-[#1d1b19] font-body truncate">
-                      {user.fullName ?? user.email}
-                    </p>
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-[#f3ede9] text-[#845326]">
-                      {user.role || "CUSTOMER"}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#827470] font-body truncate">
-                    {user.email}
-                  </p>
-                  <p className="text-[11px] text-[#D97736] font-semibold font-body truncate mb-2">
-                    ⭐ {(user.loyaltyPoints ?? 0).toLocaleString("vi-VN")} Hạt Vàng
-                  </p>
-
-                  {isStaffOrAdmin && (
-                    <Link
-                      href="/staff"
-                      className="w-full flex items-center gap-1.5 text-[12px] font-semibold text-[#D97736] hover:bg-[#FAF0E6] px-2 py-1.5 rounded-lg transition-colors font-body mb-1"
-                    >
-                      <span className="material-symbols-outlined text-sm">
-                        coffee_maker
-                      </span>
-                      Quầy Pha Chế (Barista KDS)
-                    </Link>
-                  )}
-
-                  {isAdmin && (
-                    <Link
-                      href="/admin"
-                      className="w-full flex items-center gap-1.5 text-[12px] font-semibold text-[#2D6A4F] hover:bg-[#FAF0E6] px-2 py-1.5 rounded-lg transition-colors font-body mb-1"
-                    >
-                      <span className="material-symbols-outlined text-sm">
-                        inventory_2
-                      </span>
-                      Quản lý Kho & Định lượng
-                    </Link>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => setIsLoyaltyDrawerOpen(true)}
-                    className="w-full flex items-center gap-1.5 text-[12px] font-semibold text-[#845326] hover:bg-[#FAF0E6] px-2 py-1.5 rounded-lg transition-colors font-body mb-1"
-                  >
-                    <span className="material-symbols-outlined text-sm">
-                      workspace_premium
-                    </span>
-                    Xem Thẻ Thành Viên
-                  </button>
-                  <button
-                    type="button"
-                    onClick={logout}
-                    className="w-full flex items-center gap-1.5 text-[12px] font-semibold text-red-600 hover:bg-red-50 px-2 py-1.5 rounded-lg transition-colors font-body"
-                  >
-                    <span className="material-symbols-outlined text-sm">
-                      logout
-                    </span>
-                    Đăng xuất
-                  </button>
-                </div>
               </div>
             </div>
           ) : (

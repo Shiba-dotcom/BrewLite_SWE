@@ -411,6 +411,7 @@ export interface VoucherItem {
   description: string;
   discountPercent: number;
   minOrderAmount: number;
+  maxDiscountAmount?: number;
   quantity?: number;
 }
 
@@ -456,6 +457,8 @@ function PromoCard({
       !found &&
       clean !== "BREWCOZY" &&
       clean !== "BREW10" &&
+      clean !== "BREW20" &&
+      clean !== "BREW50" &&
       clean !== "BREWLITE10"
     ) {
       setErrorMessage(`Mã giảm giá "${clean}" không tồn tại hoặc đã hết hạn.`);
@@ -682,13 +685,13 @@ function SummaryCard({
           <span className="font-medium text-stone-900">{vnd(subtotal)}</span>
         </div>
 
-        {/* Ưu đãi Giờ vàng / Khuyến mại (Hiển thị số âm nổi bật màu cam đất/đỏ) */}
+        {/* Khuyến mãi */}
         {discount > 0 && (
           <div className="flex justify-between text-[#b45309] font-semibold">
-            <span className="flex items-center gap-1">
-              {"Ưu đãi Giờ vàng / Khuyến mại".normalize("NFC")}
+            <span className="flex items-center gap-1.5 leading-none">
+              <span className="leading-none">{"Khuyến mãi".normalize("NFC")}</span>
               {promoCode && (
-                <span className="text-[10px] bg-[#fef3c7] text-[#92400e] px-1.5 py-0.2 rounded font-mono">
+                <span className="inline-flex items-center justify-center text-[10px] bg-[#fef3c7] text-[#92400e] px-1.5 py-0.5 rounded font-mono font-bold leading-none border border-[#fde68a]">
                   {promoCode}
                 </span>
               )}
@@ -875,6 +878,15 @@ function EmptyCart() {
 }
 
 // ─── Main Cart Page ──────────────────────────────────────────────────────────
+const VOUCHER_METADATA: Record<string, { title: string; minOrder: number; maxDiscount: number }> = {
+  BREW10: { title: "Voucher Giảm 10% Toàn Đơn", minOrder: 0, maxDiscount: 15000 },
+  BREW20: { title: "Voucher Giảm 20% Đơn Từ 60k", minOrder: 60000, maxDiscount: 25000 },
+  BREW50: { title: "Siêu Voucher Giảm 50% VIP", minOrder: 120000, maxDiscount: 60000 },
+  BREWCOZY: { title: "Ưu đãi Giờ vàng giảm 15% toàn menu", minOrder: 0, maxDiscount: 20000 },
+  BREWLITE10: { title: "Voucher Giảm 10% Chào Mừng", minOrder: 0, maxDiscount: 15000 },
+  WELCOME20: { title: "Voucher Giảm 20% Khách Hàng Mới", minOrder: 50000, maxDiscount: 25000 },
+};
+
 export default function CartPage() {
   const {
     items,
@@ -894,8 +906,10 @@ export default function CartPage() {
   const [hydrated, setHydrated] = useState(false);
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
   const [availableVouchers, setAvailableVouchers] = useState<VoucherItem[]>([
-    { code: "BREWCOZY", description: "Giờ vàng -15%", discountPercent: 15, minOrderAmount: 0, quantity: 1 },
-    { code: "BREW10", description: "Ưu đãi thành viên -10%", discountPercent: 10, minOrderAmount: 0, quantity: 1 },
+    { code: "BREWCOZY", description: "Giờ vàng -15%", discountPercent: 15, minOrderAmount: 0, maxDiscountAmount: 25000, quantity: 1 },
+    { code: "BREW10", description: "Voucher Giảm 10% Toàn Đơn", discountPercent: 10, minOrderAmount: 0, maxDiscountAmount: 15000, quantity: 1 },
+    { code: "BREW20", description: "Voucher Giảm 20% Đơn Từ 60k", discountPercent: 20, minOrderAmount: 60000, maxDiscountAmount: 25000, quantity: 1 },
+    { code: "BREW50", description: "Siêu Voucher Giảm 50% VIP", discountPercent: 50, minOrderAmount: 120000, maxDiscountAmount: 60000, quantity: 1 },
   ]);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -923,29 +937,48 @@ export default function CartPage() {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         let baseList: VoucherItem[] = [
-          { code: "BREWCOZY", description: "Giờ vàng -15%", discountPercent: 15, minOrderAmount: 0, quantity: 1 },
-          { code: "BREW10", description: "Ưu đãi thành viên -10%", discountPercent: 10, minOrderAmount: 0, quantity: 1 },
+          { code: "BREWCOZY", description: "Giờ vàng -15%", discountPercent: 15, minOrderAmount: 0, maxDiscountAmount: 25000, quantity: 1 },
+          { code: "BREW10", description: "Voucher Giảm 10% Toàn Đơn", discountPercent: 10, minOrderAmount: 0, maxDiscountAmount: 15000, quantity: 1 },
+          { code: "BREW20", description: "Voucher Giảm 20% Đơn Từ 60k", discountPercent: 20, minOrderAmount: 60000, maxDiscountAmount: 25000, quantity: 1 },
+          { code: "BREW50", description: "Siêu Voucher Giảm 50% VIP", discountPercent: 50, minOrderAmount: 120000, maxDiscountAmount: 60000, quantity: 1 },
         ];
         if (data && Array.isArray(data.vouchers) && data.vouchers.length > 0) {
-          baseList = data.vouchers.map((v: VoucherItem) => ({ ...v, quantity: v.quantity || 1 }));
+          baseList = data.vouchers.map((v: VoucherItem) => {
+            const meta = VOUCHER_METADATA[v.code.toUpperCase()];
+            return {
+              ...v,
+              description: meta?.title || v.description,
+              minOrderAmount: meta?.minOrder !== undefined ? meta.minOrder : v.minOrderAmount || 0,
+              quantity: v.quantity || 1,
+              maxDiscountAmount: meta?.maxDiscount || v.maxDiscountAmount || 25000,
+            };
+          });
         }
 
         // Đồng bộ cộng dồn các mã người dùng đã đổi
         const userVouchers = user?.vouchers || [];
         const merged = [...baseList];
         userVouchers.forEach((uv) => {
+          const meta = VOUCHER_METADATA[uv.code.toUpperCase()];
+          const maxCap = meta?.maxDiscount || (uv.discountPercent <= 10 ? 15000 : uv.discountPercent <= 20 ? 25000 : 60000);
+          const minReq = meta?.minOrder !== undefined ? meta.minOrder : uv.minOrderAmount || 0;
+          const title = meta?.title || `Ưu đãi ${uv.code} (-${uv.discountPercent}%)`;
           const idx = merged.findIndex((m) => m.code === uv.code);
           if (idx >= 0) {
             merged[idx] = {
               ...merged[idx],
+              description: title,
               quantity: uv.quantity,
+              minOrderAmount: minReq,
+              maxDiscountAmount: maxCap,
             };
           } else {
             merged.push({
               code: uv.code,
-              description: `Ưu đãi ${uv.code} (-${uv.discountPercent}%)`,
+              description: title,
               discountPercent: uv.discountPercent,
-              minOrderAmount: uv.minOrderAmount,
+              minOrderAmount: minReq,
+              maxDiscountAmount: maxCap,
               quantity: uv.quantity,
             });
           }
@@ -960,28 +993,33 @@ export default function CartPage() {
 
   const handleRedeemSuccess = (code: string, newQty?: number) => {
     setAvailableVouchers((prev) => {
+      const meta = VOUCHER_METADATA[code.toUpperCase()];
       const idx = prev.findIndex((v) => v.code === code);
       if (idx >= 0) {
         const next = [...prev];
         next[idx] = {
           ...next[idx],
+          description: meta?.title || next[idx].description,
+          minOrderAmount: meta?.minOrder !== undefined ? meta.minOrder : next[idx].minOrderAmount,
+          maxDiscountAmount: meta?.maxDiscount || next[idx].maxDiscountAmount,
           quantity: typeof newQty === "number" ? newQty : (next[idx].quantity || 1) + 1,
         };
         return next;
       } else {
         const reward =
           code === "BREW50"
-            ? { pct: 50, min: 80000 }
+            ? { pct: 50, min: 120000, max: 60000 }
             : code === "BREW20"
-            ? { pct: 20, min: 50000 }
-            : { pct: 10, min: 0 };
+            ? { pct: 20, min: 60000, max: 25000 }
+            : { pct: 10, min: 0, max: 15000 };
         return [
           ...prev,
           {
             code,
-            description: `Ưu đãi ${code}`,
+            description: meta?.title || `Ưu đãi ${code}`,
             discountPercent: reward.pct,
             minOrderAmount: reward.min,
+            maxDiscountAmount: reward.max,
             quantity: typeof newQty === "number" ? newQty : 1,
           },
         ];
@@ -997,15 +1035,37 @@ export default function CartPage() {
   const matchedVoucher = availableVouchers.find((v) => v.code === appliedPromo);
   const discountRate = matchedVoucher
     ? matchedVoucher.discountPercent / 100
-    : appliedPromo === "BREWCOZY"
-      ? 0.15
-      : appliedPromo === "BREW10"
-        ? 0.1
-        : 0;
-  const discountAmount =
-    matchedVoucher && subtotal < (matchedVoucher.minOrderAmount || 0)
-      ? 0
-      : Math.round(subtotal * discountRate);
+    : appliedPromo === "BREW50"
+      ? 0.5
+      : appliedPromo === "BREW20"
+        ? 0.2
+        : appliedPromo === "BREWCOZY"
+          ? 0.15
+          : appliedPromo === "BREW10" || appliedPromo === "BREWLITE10"
+            ? 0.1
+            : 0;
+
+  const minOrderReq = matchedVoucher?.minOrderAmount ?? (
+    appliedPromo === "BREW50" ? 120000 : appliedPromo === "BREW20" ? 60000 : 0
+  );
+
+  const maxDiscountCap = matchedVoucher?.maxDiscountAmount ?? (
+    appliedPromo === "BREW50"
+      ? 60000
+      : appliedPromo === "BREW20"
+        ? 25000
+        : appliedPromo === "BREW10" || appliedPromo === "BREWLITE10"
+          ? 15000
+          : appliedPromo === "BREWCOZY"
+            ? 25000
+            : Infinity
+  );
+
+  let discountAmount = 0;
+  if (appliedPromo && subtotal >= minOrderReq) {
+    const rawDiscount = Math.round(subtotal * discountRate);
+    discountAmount = Math.min(rawDiscount, maxDiscountCap);
+  }
 
   // Match the product for editing in modal
   const editingProduct: Product | null = useMemo(() => {
