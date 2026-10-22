@@ -32,6 +32,7 @@ export default function LoyaltyDrawer({ isOpen, onClose }: LoyaltyDrawerProps) {
 
   useEffect(() => {
     setMounted(true);
+    refreshProfile?.();
     const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
     fetch(`${apiBase}/inventory/pricing-config`)
       .then((res) => (res.ok ? res.json() : null))

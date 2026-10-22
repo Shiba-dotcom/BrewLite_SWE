@@ -900,7 +900,7 @@ export default function CartPage() {
     setAppliedPromo,
   } = useCartStore();
 
-  const { user } = useAuthStore();
+  const { user, refreshProfile } = useAuthStore();
   const [hydrated, setHydrated] = useState(false);
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
   const [availableVouchers, setAvailableVouchers] = useState<VoucherItem[]>([
@@ -920,6 +920,7 @@ export default function CartPage() {
 
   useEffect(() => {
     setHydrated(true);
+    refreshProfile?.();
     const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
     fetch(`${apiBase}/inventory/pricing-config`)
       .then((res) => (res.ok ? res.json() : null))

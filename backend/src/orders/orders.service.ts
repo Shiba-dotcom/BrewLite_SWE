@@ -327,33 +327,9 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         include: { items: true },
       });
 
-      // Nếu người dùng sử dụng mã voucher cá nhân đã đổi, giảm 1 lượt dùng
-      if (userId && appliedDiscountCode && (tx as any).userVoucher) {
-        try {
-          const userVoucher = await (tx as any).userVoucher.findUnique({
-            where: {
-              userId_code: {
-                userId,
-                code: appliedDiscountCode,
-              },
-            },
-          });
-          if (userVoucher) {
-            if (userVoucher.quantity > 1) {
-              await (tx as any).userVoucher.update({
-                where: { id: userVoucher.id },
-                data: { quantity: { decrement: 1 } },
-              });
-            } else {
-              await (tx as any).userVoucher.delete({
-                where: { id: userVoucher.id },
-              });
-            }
-          }
-        } catch {
-          // Bỏ qua lỗi nếu bảng userVoucher chưa sẵn sàng
-        }
-      }
+      // Lưu ý: Không trừ số lượng voucher tại thời điểm tạo đơn.
+      // Mã chỉ bị trừ khi đơn hàng thành công (sau khi nhận món: OrderStatus.COMPLETED).
+      // Nếu có bất kỳ yếu tố gì khiến đơn hàng failed (hủy đơn, thanh toán lỗi...), mã vẫn được bảo toàn nguyên vẹn.
 
       return newOrder;
     });
@@ -554,9 +530,96 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
           }
         }
 
+        // Nếu đơn hàng đã từng bị trừ mã voucher (voucherDeducted === true) -> trả lại mã cho khách
+        if (
+          order.userId &&
+          order.discountCode &&
+          (order as any).voucherDeducted &&
+          tx.userVoucher
+        ) {
+          try {
+            const userVoucher = await tx.userVoucher.findUnique({
+              where: {
+                userId_code: {
+                  userId: order.userId,
+                  code: order.discountCode,
+                },
+              },
+            });
+            if (userVoucher) {
+              await tx.userVoucher.update({
+                where: { id: userVoucher.id },
+                data: { quantity: { increment: 1 } },
+              });
+            } else {
+              await tx.userVoucher.create({
+                data: {
+                  userId: order.userId,
+                  code: order.discountCode,
+                  quantity: 1,
+                  discountPercent: 10,
+                  minOrderAmount: 0,
+                },
+              });
+            }
+          } catch {
+            // Bỏ qua lỗi
+          }
+        }
+
         return tx.order.update({
           where: { id: orderId },
-          data: { status: nextStatus },
+          data: { status: nextStatus, voucherDeducted: false },
+        });
+      });
+
+      return {
+        orderId: updated.id,
+        previousStatus,
+        status: updated.status,
+        updatedAt: updated.updatedAt,
+      };
+    }
+
+    // Khi đơn hàng thành công (COMPLETED - Sau khi nhận món):
+    // Trừ 1 vé voucher cá nhân của người dùng nếu có áp dụng mã và chưa từng trừ
+    if (nextStatus === OrderStatus.COMPLETED && this.prisma.$transaction) {
+      const updated = await this.prisma.$transaction(async (tx: any) => {
+        if (order.userId && order.discountCode && !(order as any).voucherDeducted) {
+          try {
+            if (tx.userVoucher) {
+              const userVoucher = await tx.userVoucher.findUnique({
+                where: {
+                  userId_code: {
+                    userId: order.userId,
+                    code: order.discountCode,
+                  },
+                },
+              });
+              if (userVoucher) {
+                if (userVoucher.quantity > 1) {
+                  await tx.userVoucher.update({
+                    where: { id: userVoucher.id },
+                    data: { quantity: { decrement: 1 } },
+                  });
+                } else {
+                  await tx.userVoucher.delete({
+                    where: { id: userVoucher.id },
+                  });
+                }
+              }
+            }
+          } catch {
+            // Bỏ qua lỗi nếu bảng userVoucher chưa sẵn sàng
+          }
+        }
+
+        return tx.order.update({
+          where: { id: orderId },
+          data: {
+            status: nextStatus,
+            voucherDeducted: order.discountCode ? true : false,
+          },
         });
       });
 

@@ -286,11 +286,6 @@ export default function VoucherModal({
                             <h4 className="font-bold text-xs text-[#1D1B19] truncate">
                               {v.description || `Ưu đãi giảm ${v.discountPercent}%`}
                             </h4>
-                            {qty > 1 && (
-                              <span className="text-[10px] bg-[#d97706] text-white font-extrabold px-2 py-0.5 rounded-full shadow-2xs">
-                                x{qty} vé
-                              </span>
-                            )}
                             {isApplied && (
                               <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
                                 <Check size={10} strokeWidth={3} /> Đang chọn
@@ -299,15 +294,25 @@ export default function VoucherModal({
                           </div>
 
                           <p className="text-[11px] text-stone-500 mt-1 font-body">
-                            {qty > 1 && (
-                              <strong className="text-[#845326] mr-1">
-                                {isApplied ? `Đang dùng 1 vé (còn ${qty - 1} vé) •` : `Có ${qty} vé khả dụng •`}
-                              </strong>
-                            )}
                             {min > 0
                               ? `Áp dụng cho đơn từ ${min.toLocaleString("vi-VN")}đ`
                               : "Áp dụng cho mọi giá trị đơn hàng"}
                           </p>
+
+                          {/* Hiển thị rõ số lượng khả dụng trên từng thẻ voucher */}
+                          <div className="mt-2 flex items-center gap-2 flex-wrap">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#845326] bg-[#FAF0E6] px-2.5 py-0.5 rounded-md border border-[#845326]/20 shadow-2xs">
+                              <Tag size={12} className="text-[#845326]" />
+                              <span>{`Số lượng khả dụng: ${qty}`.normalize("NFC")}</span>
+                            </span>
+                            {isApplied && (
+                              <span className="text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-medium">
+                                {qty > 1
+                                  ? `(Đang dùng 1 vé, còn lại ${qty - 1})`.normalize("NFC")
+                                  : "(Đang áp dụng cho đơn này)".normalize("NFC")}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         {/* Progress Bar if not eligible */}
