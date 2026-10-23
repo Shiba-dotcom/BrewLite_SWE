@@ -6,6 +6,7 @@ import { JwtStrategy } from '../auth/jwt.strategy.js';
 import { PaymentsController } from './payments.controller.js';
 import { PaymentsService } from './payments.service.js';
 import { MockPaymentService } from './mock-payment.service.js';
+import { ZaloPayService } from './zalopay.service.js';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { MockPaymentService } from './mock-payment.service.js';
     }),
   ],
   controllers: [PaymentsController],
-  providers: [PaymentsService, MockPaymentService, JwtStrategy],
-  exports: [PaymentsService],
+  providers: [PaymentsService, MockPaymentService, ZaloPayService, JwtStrategy],
+  exports: [PaymentsService, ZaloPayService],
 })
 export class PaymentsModule {}

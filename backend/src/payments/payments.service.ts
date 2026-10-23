@@ -6,10 +6,11 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { OrderStatus, PaymentStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus, PaymentMethod } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreatePaymentDto } from './dto/create-payment.dto.js';
 import { MockPaymentService } from './mock-payment.service.js';
+import { ZaloPayService, ZaloPayCreateOrderResult, ZaloPayQueryResult } from './zalopay.service.js';
 import { assertTransition } from './state-machine.helper.js';
 
 /** Ty le quy doi Hat Vang (Task 10): 1.000 VND = 1 diem */
@@ -36,6 +37,7 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mockPaymentService: MockPaymentService,
+    private readonly zaloPayService: ZaloPayService,
   ) {}
 
   /**
@@ -239,5 +241,221 @@ export class PaymentsService {
             : 'Thanh toan don hang thanh cong!',
       };
     });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ZaloPay Sandbox Integration (Bên thứ ba)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Tạo Payment Link / QR code trên Cổng ZaloPay Sandbox
+   */
+  async createZaloPayOrder(orderId: number, userId: number): Promise<ZaloPayCreateOrderResult> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng #${orderId}`);
+    }
+
+    if (order.userId !== null && order.userId !== userId) {
+      throw new ForbiddenException('Bạn không có quyền thực hiện thanh toán cho đơn hàng này');
+    }
+
+    if (order.status !== OrderStatus.PENDING) {
+      throw new BadRequestException(`Đơn hàng #${orderId} hiện không ở trạng thái chờ thanh toán (${order.status})`);
+    }
+
+    const isExpired = Date.now() - new Date(order.createdAt).getTime() > 5 * 60 * 1000;
+    if (isExpired) {
+      throw new BadRequestException('Đơn hàng đã hết hạn thanh toán (quá 5 phút). Vui lòng tạo đơn mới.');
+    }
+
+    return await this.zaloPayService.createOrder({
+      orderId: order.id,
+      amount: order.totalAmount,
+      description: `BrewLite - Thanh toan don hang #${order.id}`,
+      appUser: `user_${userId}`,
+    });
+  }
+
+  /**
+   * Xử lý IPN Callback từ máy chủ ZaloPay (Xác thực chữ ký HMAC Key2)
+   */
+  async handleZaloPayCallback(body: { data: string; mac: string; type?: number }) {
+    const isValid = this.zaloPayService.verifyCallback(body.data, body.mac);
+    if (!isValid) {
+      this.logger.error('[ZaloPay Callback] Chữ ký MAC không hợp lệ (Tampered Data)');
+      return { return_code: -1, return_message: 'mac not equal' };
+    }
+
+    try {
+      const dataJson = JSON.parse(body.data);
+      const { app_trans_id, amount, zp_trans_id, embed_data } = dataJson;
+
+      let orderId: number | null = null;
+      if (embed_data) {
+        try {
+          const parsed = JSON.parse(embed_data);
+          if (parsed.orderId) orderId = Number(parsed.orderId);
+        } catch {}
+      }
+
+      // Fallback lấy orderId từ app_trans_id: yymmdd_orderId_random
+      if (!orderId && app_trans_id) {
+        const parts = app_trans_id.split('_');
+        if (parts.length >= 2 && !isNaN(Number(parts[1]))) {
+          orderId = Number(parts[1]);
+        }
+      }
+
+      if (!orderId) {
+        this.logger.error(`[ZaloPay Callback] Không trích xuất được orderId từ app_trans_id: ${app_trans_id}`);
+        return { return_code: 0, return_message: 'orderId not found' };
+      }
+
+      const order = await this.prisma.order.findUnique({
+        where: { id: orderId },
+      });
+
+      if (!order) {
+        this.logger.warn(`[ZaloPay Callback] Không tìm thấy đơn hàng #${orderId}`);
+        return { return_code: 0, return_message: 'order not found' };
+      }
+
+      // Idempotency: nếu đơn hàng đã thanh toán thành công từ trước, trả về 1 ngay
+      if (order.status === OrderStatus.PAID) {
+        this.logger.log(`[ZaloPay Callback] Đơn hàng #${orderId} đã được thanh toán trước đó (Idempotent)`);
+        return { return_code: 1, return_message: 'success' };
+      }
+
+      // Cập nhật trạng thái PAID trong transaction
+      await this.prisma.$transaction(async (tx) => {
+        await tx.order.update({
+          where: { id: orderId },
+          data: {
+            status: OrderStatus.PAID,
+            version: { increment: 1 },
+          },
+        });
+
+        await tx.payment.create({
+          data: {
+            orderId: order.id,
+            amount: Number(amount) || order.totalAmount,
+            method: PaymentMethod.EWALLET,
+            status: PaymentStatus.SUCCESS,
+            idempotencyKey: `ZALOPAY_${zp_trans_id || app_trans_id}`,
+          },
+        });
+
+        const points = Math.floor((Number(amount) || order.totalAmount) / POINTS_PER_VND);
+        if (points > 0 && order.userId) {
+          await tx.user.update({
+            where: { id: order.userId },
+            data: { loyaltyPoints: { increment: points } },
+          });
+        }
+      });
+
+      this.logger.log(`[ZaloPay Callback] Đơn #${orderId} thanh toán thành công qua ZaloPay (zp_trans_id: ${zp_trans_id})`);
+      return { return_code: 1, return_message: 'success' };
+    } catch (err: any) {
+      this.logger.error(`[ZaloPay Callback] Lỗi xử lý callback: ${err.message}`);
+      return { return_code: 0, return_message: err.message };
+    }
+  }
+
+  /**
+   * Tra cứu trạng thái đơn hàng ZaloPay (Phục vụ Polling 3s từ Frontend)
+   */
+  async getZaloPayStatus(orderId: number, userId: number, appTransId?: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng #${orderId}`);
+    }
+
+    if (order.userId !== null && order.userId !== userId) {
+      throw new ForbiddenException('Bạn không có quyền xem thông tin thanh toán của đơn hàng này');
+    }
+
+    if (order.status === OrderStatus.PAID) {
+      return {
+        orderId: order.id,
+        status: OrderStatus.PAID,
+        isPaid: true,
+        message: 'Đơn hàng đã được thanh toán thành công',
+      };
+    }
+
+    // Nếu đơn vẫn PENDING và có appTransId, gọi trực tiếp API v2/query của ZaloPay
+    if (order.status === OrderStatus.PENDING && appTransId) {
+      try {
+        const queryRes: ZaloPayQueryResult = await this.zaloPayService.queryStatus(appTransId);
+
+        // ZaloPay returnCode === 1 nghĩa là đã nhận tiền thành công
+        if (queryRes.returnCode === 1) {
+          await this.prisma.$transaction(async (tx) => {
+            const current = await tx.order.findUnique({ where: { id: orderId } });
+            if (current && current.status === OrderStatus.PENDING) {
+              await tx.order.update({
+                where: { id: orderId },
+                data: {
+                  status: OrderStatus.PAID,
+                  version: { increment: 1 },
+                },
+              });
+
+              await tx.payment.create({
+                data: {
+                  orderId,
+                  amount: queryRes.amount || order.totalAmount,
+                  method: PaymentMethod.EWALLET,
+                  status: PaymentStatus.SUCCESS,
+                  idempotencyKey: `ZALOPAY_${queryRes.zpTransId || appTransId}`,
+                },
+              });
+
+              const points = Math.floor((queryRes.amount || order.totalAmount) / POINTS_PER_VND);
+              if (points > 0 && order.userId) {
+                await tx.user.update({
+                  where: { id: order.userId },
+                  data: { loyaltyPoints: { increment: points } },
+                });
+              }
+            }
+          });
+
+          return {
+            orderId: order.id,
+            status: OrderStatus.PAID,
+            isPaid: true,
+            zpTransId: queryRes.zpTransId,
+            message: 'Thanh toán qua ZaloPay thành công!',
+          };
+        }
+
+        return {
+          orderId: order.id,
+          status: order.status,
+          isPaid: false,
+          isProcessing: queryRes.isProcessing,
+          message: queryRes.returnMessage,
+        };
+      } catch (err: any) {
+        this.logger.warn(`[ZaloPay Polling] Không thể tra cứu trạng thái ZaloPay: ${err.message}`);
+      }
+    }
+
+    return {
+      orderId: order.id,
+      status: order.status,
+      isPaid: false,
+      message: 'Đơn hàng đang chờ thanh toán',
+    };
   }
 }
