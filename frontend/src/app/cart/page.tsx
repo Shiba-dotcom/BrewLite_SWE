@@ -29,7 +29,8 @@ import Header from "../components/Header";
 import Footer from "../components/Footer";
 import ProductDetailModal, { CustomizationDetails } from "../components/ProductDetailModal";
 import VoucherModal from "../components/VoucherModal";
-import { DEFAULT_PRODUCTS, Product } from "../menu/page";
+import type { Product } from "../menu/page";
+import { DEFAULT_PRODUCTS } from "../utils/productUtils";
 import { useCartStore, CartItem, isBakeryProduct } from "../store/cartStore";
 import { useAuthStore, apiFetch } from "../store/authStore";
 
@@ -357,8 +358,7 @@ function CartItemCard({
   );
 }
 
-export const CartItemRow = CartItemCard;
-export { CartItemCard };
+const CartItemRow = CartItemCard;
 
 // ─── Sidebar Cards ───────────────────────────────────────────────────────────
 

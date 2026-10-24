@@ -27,12 +27,13 @@ import {
   X,
   Snowflake,
   Flame,
+  ExternalLink,
 } from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { apiFetch, useAuthStore } from "../store/authStore";
 import { useCartStore, isBakeryProduct } from "../store/cartStore";
-import { DEFAULT_PRODUCTS } from "../menu/page";
+import { DEFAULT_PRODUCTS } from "../utils/productUtils";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function vnd(n: number) {
@@ -249,6 +250,14 @@ function CheckoutContent() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState<string>("");
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  // Cổng thanh toán ZaloPay Sandbox (Bên thứ ba VNG)
+  const [ewalletProvider, setEwalletProvider] = useState<"ZALOPAY" | "VIETQR">("ZALOPAY");
+  const [zaloPayLoading, setZaloPayLoading] = useState(false);
+  const [zaloPayData, setZaloPayData] = useState<{
+    orderUrl?: string;
+    zpTransToken?: string;
+    appTransId?: string;
+  } | null>(null);
 
   // Form Thẻ Tín Dụng / Ghi Nợ (Mock Stripe Element)
   const [cardNumber, setCardNumber] = useState("4242 4242 4242 4242");
@@ -278,6 +287,66 @@ function CheckoutContent() {
       setTimeout(() => setCopiedField(null), 2000);
     }
   };
+
+  // Tự động kết nối máy chủ ZaloPay Sandbox khi khách hàng chọn ZaloPay
+  useEffect(() => {
+    let active = true;
+    const initZaloPay = async () => {
+      if (!order?.id || selectedMethod !== "EWALLET" || ewalletProvider !== "ZALOPAY") return;
+      if (zaloPayData?.appTransId) return;
+
+      setZaloPayLoading(true);
+      try {
+        const res = await apiFetch("/payments/zalopay/create", {
+          method: "POST",
+          body: JSON.stringify({ orderId: order.id }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (active && (data.returnCode === 1 || data.orderUrl)) {
+          setZaloPayData({
+            orderUrl: data.orderUrl,
+            zpTransToken: data.zpTransToken,
+            appTransId: data.appTransId,
+          });
+        }
+      } catch (err) {
+        console.warn("Lỗi tạo đơn ZaloPay sandbox:", err);
+      } finally {
+        if (active) setZaloPayLoading(false);
+      }
+    };
+
+    initZaloPay();
+    return () => {
+      active = false;
+    };
+  }, [order?.id, selectedMethod, ewalletProvider, zaloPayData?.appTransId]);
+
+  // Polling tự động mỗi 3 giây tra cứu trạng thái thanh toán từ máy chủ ZaloPay
+  useEffect(() => {
+    if (!zaloPayData?.appTransId || !order?.id || selectedMethod !== "EWALLET" || ewalletProvider !== "ZALOPAY") return;
+    if (order.status === "PAID" || order.status === "CANCELLED") return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await apiFetch(`/payments/zalopay/status/${order.id}?appTransId=${zaloPayData.appTransId}`);
+        const data = await res.json().catch(() => ({}));
+        if (data.isPaid) {
+          clearInterval(interval);
+          clearCart();
+          if (typeof window !== "undefined") {
+            sessionStorage.removeItem("brewlite_active_pending_order");
+          }
+          router.push(`/order-confirmation?orderId=${order.id}`);
+        }
+      } catch {
+        // bỏ qua lỗi gián đoạn mạng khi polling
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [zaloPayData?.appTransId, order?.id, order?.status, selectedMethod, ewalletProvider, clearCart, router]);
+
 
   // Tự động sinh Idempotency Key mới
   const regenerateIdempotencyKey = () => {
@@ -1090,134 +1159,260 @@ function CheckoutContent() {
 
                     {/* 2 khối riêng biệt: cùng nền xám be bg-[#F4EFEA], VietQR chữ xanh, NAPAS 247 chữ đỏ */}
                     <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[11px] font-sans font-bold px-2 py-0.5 rounded-md bg-[#E5F3FF] text-[#0068FF] border border-[#BCE0FD] tracking-wide flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#0068FF] animate-pulse" />
+                        ZaloPay Sandbox
+                      </span>
                       <span className="text-[11px] font-sans font-bold px-2 py-0.5 rounded-md bg-[#E6F0FA] text-[#005BAA] border border-[#B8D5F2] tracking-wide">
                         VietQR
-                      </span>
-                      <span className="text-[11px] font-sans font-bold px-2 py-0.5 rounded-md bg-[#FDF0EC] text-[#C93B1F] border border-[#F8D0C3] tracking-wide">
-                        NAPAS 247
                       </span>
                     </div>
                   </div>
 
-                  {/* Khối mở rộng con: Hiển thị mã VietQR động thật và thông tin chuyển khoản chi tiết */}
+                  {/* Khối mở rộng con: Hỗ trợ cả ZaloPay Sandbox (Bên thứ ba VNG) và VietQR Ngân Hàng */}
                   {selectedMethod === "EWALLET" && (
-                    <div className="mt-4 pt-4 border-t border-[#EAE4DC] bg-white rounded-2xl p-4 md:p-5 flex flex-col md:flex-row items-center md:items-start gap-5 border border-[#EDE7DE] shadow-2xs">
-                      {/* Cột Trái: Ảnh VietQR Động */}
-                      <div className="flex flex-col items-center shrink-0">
-                        <div className="relative w-[170px] h-[170px] bg-white border border-[#EAE4DC] rounded-2xl p-2 shadow-xs flex items-center justify-center overflow-hidden">
-                          <Image
-                            src={`https://img.vietqr.io/image/MB-0987654321-compact2.png?amount=${order.totalAmount}&addInfo=BREWLITE_${order.id}&accountName=BREWLITE%20ROASTERY`}
-                            alt="VietQR BrewLite Roastery"
-                            fill
-                            unoptimized
-                            sizes="170px"
-                            className="object-contain p-1"
-                          />
-                        </div>
-                        <span className="text-[10px] text-stone-500 mt-1.5 font-medium flex items-center gap-1">
-                          <QrCode size={11} className="text-[#845326]" />
-                          {"Quét tự động điền số tiền & nội dung".normalize("NFC")}
-                        </span>
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="mt-4 pt-4 border-t border-[#EAE4DC] bg-white rounded-2xl p-4 md:p-5 flex flex-col gap-4 border border-[#EDE7DE] shadow-2xs"
+                    >
+                      {/* Tabs Chuyển Đổi Phương Thức EWALLET */}
+                      <div className="flex items-center gap-2 p-1 bg-[#FAF6F0] rounded-xl border border-[#EDE7DE]">
+                        <button
+                          type="button"
+                          onClick={() => setEwalletProvider("ZALOPAY")}
+                          className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                            ewalletProvider === "ZALOPAY"
+                              ? "bg-[#0068FF] text-white shadow-xs"
+                              : "text-stone-600 hover:text-stone-900 bg-transparent"
+                          }`}
+                        >
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                          {"Ví ZaloPay Sandbox (Bên thứ ba VNG)".normalize("NFC")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEwalletProvider("VIETQR")}
+                          className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                            ewalletProvider === "VIETQR"
+                              ? "bg-[#1A120B] text-white shadow-xs"
+                              : "text-stone-600 hover:text-stone-900 bg-transparent"
+                          }`}
+                        >
+                          {"Chuyển khoản VietQR (MB Bank)".normalize("NFC")}
+                        </button>
                       </div>
 
-                      {/* Cột Phải: Thông tin số tài khoản và nút Copy nhanh */}
-                      <div className="flex-1 w-full flex flex-col gap-2.5 text-xs">
-                        <div className="bg-[#FAF6F0] rounded-xl p-3 border border-[#EBE4D8] flex flex-col gap-2">
-                          {/* Ngân hàng */}
-                          <div className="flex items-center justify-between pb-1.5 border-b border-[#EFEAE2]">
-                            <span className="text-stone-500">{"Ngân hàng nhận:".normalize("NFC")}</span>
-                            <span className="font-bold text-[#1A120B]">
-                              {"MB Bank (Ngân hàng Quân Đội)".normalize("NFC")}
-                            </span>
-                          </div>
-
-                          {/* Chủ tài khoản */}
-                          <div className="flex items-center justify-between pb-1.5 border-b border-[#EFEAE2]">
-                            <span className="text-stone-500">{"Chủ tài khoản:".normalize("NFC")}</span>
-                            <span className="font-bold text-[#1A120B] tracking-wide">
-                              {"BREWLITE ROASTERY"}
-                            </span>
-                          </div>
-
-                          {/* Số tài khoản + Nút sao chép */}
-                          <div className="flex items-center justify-between pb-1.5 border-b border-[#EFEAE2]">
-                            <span className="text-stone-500">{"Số tài khoản:".normalize("NFC")}</span>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-sm text-[#1A120B]">
-                                0987654321
-                              </span>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCopy("0987654321", "accountNumber");
-                                }}
-                                className="px-2 py-0.5 rounded bg-white hover:bg-stone-100 text-[#845326] border border-stone-200 text-[10px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-                              >
-                                {copiedField === "accountNumber" ? (
-                                  <>
-                                    <CheckCheck size={11} className="text-emerald-600" />
-                                    <span className="text-emerald-600">{"Đã chép".normalize("NFC")}</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Copy size={11} />
-                                    <span>{"Sao chép".normalize("NFC")}</span>
-                                  </>
-                                )}
-                              </button>
+                      {/* Giao diện 1: ZaloPay Sandbox */}
+                      {ewalletProvider === "ZALOPAY" ? (
+                        <div className="flex flex-col md:flex-row items-center md:items-start gap-5 pt-1">
+                          {/* Cột Trái: Mã QR ZaloPay */}
+                          <div className="flex flex-col items-center shrink-0">
+                            <div className="relative w-[180px] h-[180px] bg-white border-2 border-[#0068FF]/30 rounded-2xl p-2 shadow-xs flex items-center justify-center overflow-hidden">
+                              {zaloPayLoading ? (
+                                <div className="flex flex-col items-center gap-2 text-stone-500 text-xs">
+                                  <div className="w-6 h-6 border-2 border-[#0068FF] border-t-transparent rounded-full animate-spin" />
+                                  <span>{"Đang kết nối ZaloPay...".normalize("NFC")}</span>
+                                </div>
+                              ) : (
+                                <Image
+                                  src={
+                                    zaloPayData?.orderUrl
+                                      ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
+                                          zaloPayData.orderUrl
+                                        )}`
+                                      : `https://img.vietqr.io/image/MB-0987654321-compact2.png?amount=${order.totalAmount}&addInfo=BREWLITE_${order.id}&accountName=BREWLITE%20ROASTERY`
+                                  }
+                                  alt="Mã QR ZaloPay Sandbox"
+                                  fill
+                                  unoptimized
+                                  sizes="180px"
+                                  className="object-contain p-1"
+                                />
+                              )}
                             </div>
-                          </div>
-
-                          {/* Số tiền */}
-                          <div className="flex items-center justify-between pb-1.5 border-b border-[#EFEAE2]">
-                            <span className="text-stone-500">{"Số tiền chuyển:".normalize("NFC")}</span>
-                            <span className="font-sans font-bold text-sm text-[#A47148]">
-                              {vnd(order.totalAmount)}
+                            <span className="text-[10px] text-stone-600 mt-2 font-medium flex items-center gap-1">
+                              <QrCode size={11} className="text-[#0068FF]" />
+                              {"Quét bằng ZaloPay Sandbox / Zalo".normalize("NFC")}
                             </span>
                           </div>
 
-                          {/* Nội dung chuyển khoản + Nút sao chép */}
-                          <div className="flex items-center justify-between">
-                            <span className="text-stone-500">{"Nội dung chuyển:".normalize("NFC")}</span>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-xs bg-white px-2 py-0.5 rounded border border-[#E2D8CC] text-[#1A120B]">
-                                {`BREWLITE_${order.id}`}
-                              </span>
+                          {/* Cột Phải: Thông tin ZaloPay và Nút hành động */}
+                          <div className="flex-1 w-full flex flex-col gap-2.5 text-xs">
+                            <div className="bg-[#F0F7FF] rounded-xl p-3.5 border border-[#CCE4FF] flex flex-col gap-2">
+                              <div className="flex items-center justify-between pb-1.5 border-b border-[#D8EAFD]">
+                                <span className="text-stone-600">{"Cổng thanh toán:".normalize("NFC")}</span>
+                                <span className="font-bold text-[#0068FF] flex items-center gap-1">
+                                  {"ZaloPay Sandbox (VNG)"}
+                                  <span className="bg-emerald-100 text-emerald-800 text-[9px] px-1.5 py-0.5 rounded-full font-bold">
+                                    LIVE
+                                  </span>
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between pb-1.5 border-b border-[#D8EAFD]">
+                                <span className="text-stone-600">{"Mã giao dịch (app_trans_id):".normalize("NFC")}</span>
+                                <span className="font-mono font-bold text-xs text-stone-800">
+                                  {zaloPayData?.appTransId || "Đang khởi tạo..."}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between pb-1.5 border-b border-[#D8EAFD]">
+                                <span className="text-stone-600">{"Số tiền thanh toán:".normalize("NFC")}</span>
+                                <span className="font-sans font-bold text-sm text-[#0068FF]">
+                                  {vnd(order.totalAmount)}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between">
+                                <span className="text-stone-600">{"Trạng thái đồng bộ:".normalize("NFC")}</span>
+                                <span className="text-stone-700 font-medium flex items-center gap-1.5 text-[11px]">
+                                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                                  {"Lắng nghe Webhook & Polling 3s...".normalize("NFC")}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Nút Mở Cổng ZaloPay Tab Mới */}
+                            {zaloPayData?.orderUrl && (
                               <button
                                 type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCopy(`BREWLITE_${order.id}`, "memo");
-                                }}
-                                className="px-2 py-0.5 rounded bg-white hover:bg-stone-100 text-[#845326] border border-stone-200 text-[10px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                                onClick={() => window.open(zaloPayData.orderUrl, "_blank")}
+                                className="w-full py-2 px-3 bg-[#0068FF] hover:bg-[#0052CC] text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-xs cursor-pointer"
                               >
-                                {copiedField === "memo" ? (
-                                  <>
-                                    <CheckCheck size={11} className="text-emerald-600" />
-                                    <span className="text-emerald-600">{"Đã chép".normalize("NFC")}</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Copy size={11} />
-                                    <span>{"Sao chép".normalize("NFC")}</span>
-                                  </>
-                                )}
+                                <ExternalLink size={13} />
+                                {"Mở Cổng Thanh Toán ZaloPay (Thanh toán Sandbox trên Web)".normalize("NFC")}
                               </button>
+                            )}
+
+                            {/* Hướng dẫn và Nút Xác nhận nhanh */}
+                            <div className="flex items-start gap-1.5 text-[11px] text-[#2C5282] bg-[#EBF8FF] p-2.5 rounded-xl border border-[#BEE3F8]">
+                              <ShieldCheck size={14} className="text-[#0068FF] shrink-0 mt-0.5" />
+                              <span>
+                                {"Quét mã trên app hoặc mở Cổng ZaloPay để thanh toán thử nghiệm. Trang web sẽ tự động chuyển trang ngay khi giao dịch hoàn tất.".normalize("NFC")}
+                              </span>
                             </div>
                           </div>
                         </div>
+                      ) : (
+                        <div className="flex flex-col md:flex-row items-center md:items-start gap-5 pt-1">
+                          {/* Cột Trái: Ảnh VietQR Động */}
+                          <div className="flex flex-col items-center shrink-0">
+                            <div className="relative w-[170px] h-[170px] bg-white border border-[#EAE4DC] rounded-2xl p-2 shadow-xs flex items-center justify-center overflow-hidden">
+                              <Image
+                                src={`https://img.vietqr.io/image/MB-0987654321-compact2.png?amount=${order.totalAmount}&addInfo=BREWLITE_${order.id}&accountName=BREWLITE%20ROASTERY`}
+                                alt="VietQR BrewLite Roastery"
+                                fill
+                                unoptimized
+                                sizes="170px"
+                                className="object-contain p-1"
+                              />
+                            </div>
+                            <span className="text-[10px] text-stone-500 mt-1.5 font-medium flex items-center gap-1">
+                              <QrCode size={11} className="text-[#845326]" />
+                              {"Quét tự động điền số tiền & nội dung".normalize("NFC")}
+                            </span>
+                          </div>
 
-                        {/* Hướng dẫn xác nhận */}
-                        <div className="flex items-start gap-1.5 text-[11px] text-[#654E44] bg-[#F5EDE2] p-2.5 rounded-xl border border-[#EAE0D2]">
-                          <ShieldCheck size={14} className="text-emerald-700 shrink-0 mt-0.5" />
-                          <span>
-                            {"Sau khi hoàn tất chuyển khoản trên ứng dụng ngân hàng, vui lòng nhấn nút ".normalize("NFC")}
-                            <strong>{"\"Xác nhận đã chuyển khoản\"".normalize("NFC")}</strong>
-                            {" bên dưới để Barista bắt đầu pha chế ngay.".normalize("NFC")}
-                          </span>
+                          {/* Cột Phải: Thông tin số tài khoản và nút Copy nhanh */}
+                          <div className="flex-1 w-full flex flex-col gap-2.5 text-xs">
+                            <div className="bg-[#FAF6F0] rounded-xl p-3 border border-[#EBE4D8] flex flex-col gap-2">
+                              {/* Ngân hàng */}
+                              <div className="flex items-center justify-between pb-1.5 border-b border-[#EFEAE2]">
+                                <span className="text-stone-500">{"Ngân hàng nhận:".normalize("NFC")}</span>
+                                <span className="font-bold text-[#1A120B]">
+                                  {"MB Bank (Ngân hàng Quân Đội)".normalize("NFC")}
+                                </span>
+                              </div>
+
+                              {/* Chủ tài khoản */}
+                              <div className="flex items-center justify-between pb-1.5 border-b border-[#EFEAE2]">
+                                <span className="text-stone-500">{"Chủ tài khoản:".normalize("NFC")}</span>
+                                <span className="font-bold text-[#1A120B] tracking-wide">
+                                  {"BREWLITE ROASTERY"}
+                                </span>
+                              </div>
+
+                              {/* Số tài khoản + Nút sao chép */}
+                              <div className="flex items-center justify-between pb-1.5 border-b border-[#EFEAE2]">
+                                <span className="text-stone-500">{"Số tài khoản:".normalize("NFC")}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-sm text-[#1A120B]">
+                                    0987654321
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCopy("0987654321", "accountNumber");
+                                    }}
+                                    className="px-2 py-0.5 rounded bg-white hover:bg-stone-100 text-[#845326] border border-stone-200 text-[10px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                                  >
+                                    {copiedField === "accountNumber" ? (
+                                      <>
+                                        <CheckCheck size={11} className="text-emerald-600" />
+                                        <span className="text-emerald-600">{"Đã chép".normalize("NFC")}</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy size={11} />
+                                        <span>{"Sao chép".normalize("NFC")}</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Số tiền */}
+                              <div className="flex items-center justify-between pb-1.5 border-b border-[#EFEAE2]">
+                                <span className="text-stone-500">{"Số tiền chuyển:".normalize("NFC")}</span>
+                                <span className="font-sans font-bold text-sm text-[#A47148]">
+                                  {vnd(order.totalAmount)}
+                                </span>
+                              </div>
+
+                              {/* Nội dung chuyển khoản + Nút sao chép */}
+                              <div className="flex items-center justify-between">
+                                <span className="text-stone-500">{"Nội dung chuyển:".normalize("NFC")}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-xs bg-white px-2 py-0.5 rounded border border-[#E2D8CC] text-[#1A120B]">
+                                    {`BREWLITE_${order.id}`}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCopy(`BREWLITE_${order.id}`, "memo");
+                                    }}
+                                    className="px-2 py-0.5 rounded bg-white hover:bg-stone-100 text-[#845326] border border-stone-200 text-[10px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                                  >
+                                    {copiedField === "memo" ? (
+                                      <>
+                                        <CheckCheck size={11} className="text-emerald-600" />
+                                        <span className="text-emerald-600">{"Đã chép".normalize("NFC")}</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy size={11} />
+                                        <span>{"Sao chép".normalize("NFC")}</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Hướng dẫn xác nhận */}
+                            <div className="flex items-start gap-1.5 text-[11px] text-[#654E44] bg-[#F5EDE2] p-2.5 rounded-xl border border-[#EAE0D2]">
+                              <ShieldCheck size={14} className="text-emerald-700 shrink-0 mt-0.5" />
+                              <span>
+                                {"Sau khi hoàn tất chuyển khoản trên ứng dụng ngân hàng, vui lòng nhấn nút ".normalize("NFC")}
+                                <strong>{"\"Xác nhận đã chuyển khoản\"".normalize("NFC")}</strong>
+                                {" bên dưới để Barista bắt đầu pha chế ngay.".normalize("NFC")}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>

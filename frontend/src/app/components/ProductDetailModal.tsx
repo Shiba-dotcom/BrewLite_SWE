@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Product, normalizeStitchImageUrl } from "../menu/page";
+import { Product, normalizeStitchImageUrl } from "../utils/productUtils";
 import { isBakeryProduct } from "../store/cartStore";
 
 export interface ToppingItem {
@@ -139,7 +139,6 @@ export default function ProductDetailModal({
     { id: "hot", name: "Hâm nóng", desc: "Nướng nóng thơm lừng, xốp giòn chuẩn vị.", icon: "local_fire_department" },
     { id: "iced", name: "Dùng ngay", desc: "Bảo quản trong quầy, giữ độ mềm tự nhiên trong nhiệt độ phòng.", icon: "ac_unit" },
   ]);
-
   const currentAvailableToppings = useMemo(() => {
     return isBakery ? availableBakeryToppings : availableToppings;
   }, [isBakery, availableBakeryToppings, availableToppings]);
@@ -174,14 +173,16 @@ export default function ProductDetailModal({
           });
         }
         if (Array.isArray(data.toppings) && data.toppings.length > 0) {
-          setAvailableToppings(
-            data.toppings.map((t: { id: string; name?: string; toppingName?: string; subtext?: string; price: number }) => ({
-              id: t.id,
-              name: (t.name || t.toppingName || "").normalize("NFC"),
-              subtext: (t.subtext || "Topping đặc biệt").normalize("NFC"),
-              price: Number(t.price ?? 8000),
-            }))
-          );
+          const allLoadedToppings = data.toppings.map((t: { id: string; name?: string; toppingName?: string; subtext?: string; price: number }) => ({
+            id: t.id,
+            name: (t.name || t.toppingName || "").normalize("NFC"),
+            subtext: (t.subtext || "Topping đặc biệt").normalize("NFC"),
+            price: Number(t.price ?? 8000),
+          }));
+          const drinks = allLoadedToppings.filter((t: ToppingItem) => !t.id.startsWith("bakery_"));
+          const bakery = allLoadedToppings.filter((t: ToppingItem) => t.id.startsWith("bakery_"));
+          if (drinks.length > 0) setAvailableToppings(drinks);
+          if (bakery.length > 0) setAvailableBakeryToppings(bakery);
         }
         if (Array.isArray(data.bakeryToppings) && data.bakeryToppings.length > 0) {
           setAvailableBakeryToppings(

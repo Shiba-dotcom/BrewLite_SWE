@@ -9,7 +9,7 @@ import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { apiFetch, useAuthStore } from "../store/authStore";
 import { isBakeryProduct } from "../store/cartStore";
-import { DEFAULT_PRODUCTS, normalizeStitchImageUrl } from "../menu/page";
+import { DEFAULT_PRODUCTS, normalizeStitchImageUrl } from "../utils/productUtils";
 
 interface ConfirmationOrderItem {
   id: number;

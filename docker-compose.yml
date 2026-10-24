@@ -28,6 +28,12 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/brewlite?schema=public
       JWT_SECRET: brewlite-super-secret-jwt-key-change-in-prod
       PORT: 3001
+      ZALOPAY_APP_ID: '2554'
+      ZALOPAY_KEY1: 'sdngKKJmqEMzvh5QQcdD2A9XBSKUNaYn'
+      ZALOPAY_KEY2: 'trMrHtvjo6myautxDUiAcYsVtaeQ8nhf'
+      ZALOPAY_CREATE_ENDPOINT: 'https://sb-openapi.zalopay.vn/v2/create'
+      ZALOPAY_QUERY_ENDPOINT: 'https://sb-openapi.zalopay.vn/v2/query'
+      ZALOPAY_CALLBACK_URL: 'http://localhost:3001/payments/zalopay/callback'
     ports:
       - '3001:3001'
 
