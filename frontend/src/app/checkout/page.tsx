@@ -28,7 +28,7 @@ import {
   Snowflake,
   Flame,
   ExternalLink,
-} from "lucide-react";
+  ArrowRight } from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { apiFetch, useAuthStore } from "../store/authStore";
@@ -197,6 +197,7 @@ function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const orderIdParam = searchParams.get("orderId");
+  const isCanceled = searchParams.get("canceled") === "true";
   const parsedOrderId = orderIdParam ? parseInt(orderIdParam, 10) : null;
 
   const { isAuthenticated, _hasHydrated } = useAuthStore();
@@ -543,6 +544,16 @@ function CheckoutContent() {
     if (order.status === "CANCELLED" || (checkoutRemaining !== null && checkoutRemaining <= 0)) {
       setErrorMessage(
         "Đơn hàng này đã hết hạn thanh toán (quá 5 phút) và nguyên liệu đã được hoàn trả về kho. Vui lòng quay lại Giỏ hàng để tạo đơn mới."
+      );
+      return;
+    }
+
+        // Nếu là Ví ZaloPay: Chuyển hướng sang Cổng ZaloPay Gateway độc lập
+    if (selectedMethod === "EWALLET" && ewalletProvider === "ZALOPAY") {
+      router.push(
+        `/gateway/zalopay?orderId=${order.id}&amount=${order.totalAmount}&appTransId=${encodeURIComponent(
+          zaloPayData?.appTransId || ""
+        )}&token=${encodeURIComponent(zaloPayData?.zpTransToken || "")}`
       );
       return;
     }
@@ -1098,6 +1109,22 @@ function CheckoutContent() {
               </div>
 
               {/* Toast / Alert Exception Error Box (Khi thanh toán lỗi) */}
+              {/* Banner Thông Báo Đã Hủy Giao Dịch ZaloPay */}
+              {isCanceled && (
+                <div className="bg-[#FFFBEB] border-2 border-[#FCD34D] rounded-2xl p-4 flex gap-3 items-start mb-6">
+                  <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
+                    <AlertCircle size={18} strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-[#78350F]">
+                      {"Giao dịch trên Cổng ZaloPay đã được hủy".normalize("NFC")}
+                    </h4>
+                    <p className="text-xs text-[#92400E] mt-0.5 leading-relaxed">
+                      {"Bạn vừa hủy thanh toán trên Cổng ZaloPay. Đơn hàng và giỏ hàng của bạn vẫn được lưu giữ nguyên vẹn để bạn có thể chọn lại phương thức hoặc thanh toán lại bất kỳ lúc nào.".normalize("NFC")}
+                    </p>
+                  </div>
+                </div>
+              )}
               {errorMessage && (
                 <div className="bg-[#FEF2F2] border-2 border-[#FCA5A5] rounded-2xl p-4 flex gap-3 items-start animate-shake">
                   <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 mt-0.5">
@@ -1284,7 +1311,23 @@ function CheckoutContent() {
                               </button>
                             )}
 
-                            {/* Hướng dẫn và Nút Xác nhận nhanh */}
+                            {/* Nút Chuyển sang Cổng Thanh Toán ZaloPay Gateway */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                router.push(
+                                  `/gateway/zalopay?orderId=${order.id}&amount=${order.totalAmount}&appTransId=${encodeURIComponent(
+                                    zaloPayData?.appTransId || ""
+                                  )}&token=${encodeURIComponent(zaloPayData?.zpTransToken || "")}`
+                                );
+                              }}
+                              className="w-full py-3 px-4 bg-gradient-to-r from-[#0068FF] to-[#0052CC] hover:from-[#0052CC] hover:to-[#003E99] text-white font-extrabold rounded-xl text-sm flex items-center justify-center gap-2 transition shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5"
+                            >
+                              <span>{"Chuyển sang Cổng thanh toán ZaloPay Gateway".normalize("NFC")}</span>
+                              <ArrowRight size={16} />
+                            </button>
+
+                            {/* Hướng dẫn thanh toán */}
                             <div className="flex items-start gap-1.5 text-[11px] text-[#2C5282] bg-[#EBF8FF] p-2.5 rounded-xl border border-[#BEE3F8]">
                               <ShieldCheck size={14} className="text-[#0068FF] shrink-0 mt-0.5" />
                               <span>

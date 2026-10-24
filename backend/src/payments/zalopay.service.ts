@@ -158,6 +158,29 @@ export class ZaloPayService {
   }
 
   /**
+   * Tạo callback payload giả lập kèm chữ ký MAC hợp lệ bằng Key2 (dành cho Cổng ZaloPay Sandbox Gateway)
+   */
+  createMockCallbackPayload(orderId: number, amount: number, appTransId: string, zpTransId = Date.now()) {
+    const dataObj = {
+      app_id: this.appId,
+      app_trans_id: appTransId,
+      app_time: Date.now(),
+      app_user: 'zalopay_sandbox_user',
+      amount,
+      embed_data: JSON.stringify({ orderId }),
+      item: JSON.stringify([]),
+      zp_trans_id: zpTransId,
+      server_time: Date.now(),
+      channel: 38,
+      merchant_user_id: `user_${orderId}`,
+    };
+    const dataStr = JSON.stringify(dataObj);
+    const mac = createHmac('sha256', this.key2).update(dataStr).digest('hex');
+    return { data: dataStr, mac, type: 1 };
+  }
+
+
+  /**
    * Tra cứu trạng thái giao dịch từ máy chủ ZaloPay qua API v2/query
    */
   async queryStatus(appTransId: string): Promise<ZaloPayQueryResult> {

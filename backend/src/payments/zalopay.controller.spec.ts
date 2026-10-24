@@ -197,4 +197,48 @@ describe('ZaloPay Integration — Service & Controller Endpoints', () => {
       );
     });
   });
+
+  describe('POST /payments/zalopay/confirm & cancel', () => {
+    it('confirmZaloPayOrder xác nhận thanh toán thành công và cập nhật đơn PAID', async () => {
+      mockPrisma.order.findUnique.mockResolvedValue({
+        id: 77,
+        userId: 1,
+        totalAmount: 50000,
+        status: OrderStatus.PENDING,
+      });
+
+      mockZaloPayService.createMockCallbackPayload = vi.fn().mockReturnValue({
+        data: JSON.stringify({
+          app_trans_id: '261024_77_112233',
+          amount: 50000,
+          zp_trans_id: 112233,
+          embed_data: JSON.stringify({ orderId: 77 }),
+        }),
+        mac: 'valid_mock_mac',
+      });
+      mockZaloPayService.verifyCallback.mockReturnValue(true);
+
+      const res = await controller.confirmZaloPayOrder(77, '261024_77_112233');
+      expect(res.success).toBe(true);
+      expect(res.status).toBe(OrderStatus.PAID);
+      expect(mockPrisma.order.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 77 },
+          data: expect.objectContaining({ status: OrderStatus.PAID }),
+        }),
+      );
+    });
+
+    it('cancelZaloPayOrder hủy giao dịch thành công', async () => {
+      mockPrisma.order.findUnique.mockResolvedValue({
+        id: 77,
+        userId: 1,
+        status: OrderStatus.PENDING,
+      });
+
+      const res = await controller.cancelZaloPayOrder(77);
+      expect(res.success).toBe(true);
+      expect(res.message).toContain('đã được hủy');
+    });
+  });
 });

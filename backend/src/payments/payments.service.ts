@@ -458,4 +458,53 @@ export class PaymentsService {
       message: 'Đơn hàng đang chờ thanh toán',
     };
   }
+
+  /**
+   * Xác nhận thanh toán từ Cổng ZaloPay Sandbox Gateway (Sinh chữ ký HMAC Key2 chuẩn)
+   */
+  async confirmZaloPaySandbox(orderId: number, appTransId?: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng #${orderId}`);
+    }
+
+    const transId = appTransId || `261024_${orderId}_${Date.now()}`;
+    const payload = this.zaloPayService.createMockCallbackPayload(
+      order.id,
+      order.totalAmount,
+      transId,
+    );
+
+    const result = await this.handleZaloPayCallback(payload);
+    return {
+      success: result.return_code === 1,
+      message: result.return_message,
+      orderId: order.id,
+      appTransId: transId,
+      totalAmount: order.totalAmount,
+      status: OrderStatus.PAID,
+    };
+  }
+
+  /**
+   * Hủy thanh toán từ Cổng ZaloPay Sandbox Gateway
+   */
+  async cancelZaloPaySandbox(orderId: number) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng #${orderId}`);
+    }
+    this.logger.log(`[ZaloPay Gateway] Người dùng đã hủy giao dịch trên Cổng ZaloPay cho đơn hàng #${orderId}`);
+    return {
+      success: true,
+      message: 'Giao dịch ZaloPay đã được hủy',
+      orderId: order.id,
+      status: order.status,
+    };
+  }
+
 }

@@ -75,4 +75,26 @@ export class PaymentsController {
   ) {
     return this.paymentsService.getZaloPayStatus(orderId, req.user.userId, appTransId);
   }
+
+  /**
+   * POST /payments/zalopay/confirm — Xác nhận thanh toán từ Cổng ZaloPay Sandbox Gateway
+   */
+  @Post('zalopay/confirm')
+  @HttpCode(HttpStatus.OK)
+  confirmZaloPayOrder(
+    @Body('orderId', ParseIntPipe) orderId: number,
+    @Body('appTransId') appTransId?: string,
+  ) {
+    return this.paymentsService.confirmZaloPaySandbox(orderId, appTransId);
+  }
+
+  /**
+   * POST /payments/zalopay/cancel — Hủy thanh toán từ Cổng ZaloPay Sandbox Gateway
+   */
+  @Post('zalopay/cancel')
+  @HttpCode(HttpStatus.OK)
+  cancelZaloPayOrder(@Body('orderId', ParseIntPipe) orderId: number) {
+    return this.paymentsService.cancelZaloPaySandbox(orderId);
+  }
+
 }
