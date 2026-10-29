@@ -1400,6 +1400,12 @@ export default function AdminPortalPage() {
                 label: "Doanh Thu & Đơn Hàng",
                 badge: allOrders.length,
               },
+              {
+                id: "staff" as AdminTab,
+                icon: "badge",
+                label: "Quản Lý Nhân Viên",
+                badge: staffList.length > 0 ? staffList.length : undefined,
+              },
             ].map((item) => {
               const isActive = activeTab === item.id;
               return (
@@ -1487,6 +1493,8 @@ export default function AdminPortalPage() {
                 "Quản Lý Mã Giảm Giá & Khuyến Mãi (Voucher CRUD)"}
               {activeTab === "revenue" &&
                 "Quản Trị Đơn Hàng & Báo Cáo Doanh Thu"}
+              {activeTab === "staff" &&
+                "Quản Lý Nhân Viên & Ca Làm Việc"}
             </h1>
           </div>
 
