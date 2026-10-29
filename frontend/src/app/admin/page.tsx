@@ -358,13 +358,14 @@ export default function AdminPortalPage() {
     if (!_hasHydrated || !isAuthenticated || user?.role !== "ADMIN") return;
     setIsLoading(true);
     try {
-      const [ingRes, recRes, prodRes, dashRes, logsRes, vouchersRes] = await Promise.all([
+      const [ingRes, recRes, prodRes, dashRes, logsRes, vouchersRes, staffRes] = await Promise.all([
         apiFetch("/inventory/ingredients", { cache: "no-store" }),
         apiFetch("/inventory/recipes", { cache: "no-store" }),
         apiFetch("/products?includeInactive=true", { cache: "no-store" }),
         apiFetch("/inventory/dashboard", { cache: "no-store" }),
         apiFetch("/inventory/logs?limit=40", { cache: "no-store" }),
         apiFetch("/inventory/vouchers", { cache: "no-store" }),
+        apiFetch("/staff", { cache: "no-store" }),
       ]);
 
       if (ingRes.ok) {
@@ -423,6 +424,10 @@ export default function AdminPortalPage() {
       if (vouchersRes.ok) {
         const vData = await vouchersRes.json();
         setVouchers(Array.isArray(vData) ? vData : []);
+      }
+      if (staffRes?.ok) {
+        const staffData = await staffRes.json();
+        setStaffList(Array.isArray(staffData) ? staffData : []);
       }
     } catch {
       showToast("Không thể tải dữ liệu quản trị từ máy chủ");

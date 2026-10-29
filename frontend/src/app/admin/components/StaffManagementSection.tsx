@@ -42,6 +42,13 @@ export default function StaffManagementSection({
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
+  // Tự động làm mới danh sách nếu ban đầu rỗng
+  React.useEffect(() => {
+    if (staffList.length === 0) {
+      onRefresh();
+    }
+  }, [staffList.length, onRefresh]);
+
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffUser | null>(null);
