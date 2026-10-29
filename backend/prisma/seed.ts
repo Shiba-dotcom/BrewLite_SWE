@@ -666,6 +666,24 @@ async function main() {
     },
   });
 
+  // ─── 6. SYNCHRONIZE POSTGRES SEQUENCES TO PREVENT UNIQUE ID CONFLICTS ────────
+  const syncSequences = [
+    'SELECT setval(\'\"Product_id_seq\"\' , COALESCE((SELECT MAX(id) FROM \"Product\"), 1))',
+    'SELECT setval(\'\"Ingredient_id_seq\"\' , COALESCE((SELECT MAX(id) FROM \"Ingredient\"), 1))',
+    'SELECT setval(\'\"Recipe_id_seq\"\' , COALESCE((SELECT MAX(id) FROM \"Recipe\"), 1))',
+    'SELECT setval(\'\"ToppingRecipe_id_seq\"\' , COALESCE((SELECT MAX(id) FROM \"ToppingRecipe\"), 1))',
+    'SELECT setval(\'\"DiscountCode_id_seq\"\' , COALESCE((SELECT MAX(id) FROM \"DiscountCode\"), 1))',
+    'SELECT setval(\'\"User_id_seq\"\' , COALESCE((SELECT MAX(id) FROM \"User\"), 1))',
+  ];
+  for (const q of syncSequences) {
+    try {
+      await prisma.$executeRawUnsafe(q);
+    } catch {
+      // Ignore if sequence not yet ready
+    }
+  }
+  console.log('Synchronized PostgreSQL sequences with MAX(id).');
+
   console.log('Seeded users: admin@brewlite.vn, staff@brewlite.vn, khach@brewlite.vn, test@example.com');
 }
 

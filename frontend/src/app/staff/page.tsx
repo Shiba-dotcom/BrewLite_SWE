@@ -930,9 +930,6 @@ export default function BaristaKdsPage() {
                           onClick: () =>
                             handleTransitionStatus(order.id, "READY"),
                         }}
-                        onCancel={() =>
-                          handleTransitionStatus(order.id, "CANCELLED")
-                        }
                       />
                     ))}
                   </div>
@@ -1951,7 +1948,7 @@ function PreparationWorkbenchPanel({
           </button>
         )}
 
-        {(order.status === "PAID" || order.status === "PREPARING") && (
+        {order.status === "PAID" && (
           <button
             type="button"
             disabled={isUpdating}

@@ -681,6 +681,12 @@ export class InventoryService {
           dto.description?.trim() || `Giảm ${dto.discountPercent}% đơn hàng`,
         discountPercent: dto.discountPercent,
         minOrderAmount: dto.minOrderAmount ?? 0,
+        maxDiscountAmount:
+          dto.maxDiscountAmount !== undefined &&
+          dto.maxDiscountAmount !== null &&
+          Number(dto.maxDiscountAmount) > 0
+            ? Number(dto.maxDiscountAmount)
+            : null,
         isActive: dto.isActive ?? true,
       },
     });
@@ -711,6 +717,15 @@ export class InventoryService {
           : {}),
         ...(dto.minOrderAmount !== undefined
           ? { minOrderAmount: dto.minOrderAmount }
+          : {}),
+        ...(dto.maxDiscountAmount !== undefined
+          ? {
+              maxDiscountAmount:
+                dto.maxDiscountAmount !== null &&
+                Number(dto.maxDiscountAmount) > 0
+                  ? Number(dto.maxDiscountAmount)
+                  : null,
+            }
           : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
       },

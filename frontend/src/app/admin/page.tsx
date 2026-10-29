@@ -96,6 +96,7 @@ interface VoucherAdminItem {
   description: string;
   discountPercent: number;
   minOrderAmount: number;
+  maxDiscountAmount?: number | null;
   isActive: boolean;
   usageCount: number;
 }
@@ -304,9 +305,18 @@ export default function AdminPortalPage() {
   const [newVoucherDesc, setNewVoucherDesc] = useState<string>("");
   const [newVoucherPercent, setNewVoucherPercent] = useState<string>("15");
   const [newVoucherMinOrder, setNewVoucherMinOrder] = useState<string>("0");
+  const [newVoucherMaxDiscount, setNewVoucherMaxDiscount] = useState<string>("");
   const [isSavingVoucher, setIsSavingVoucher] = useState<boolean>(false);
   const [editingVoucherDrafts, setEditingVoucherDrafts] = useState<
-    Record<number, { discountPercent: string; minOrderAmount: string; description: string }>
+    Record<
+      number,
+      {
+        discountPercent: string;
+        minOrderAmount: string;
+        maxDiscountAmount: string;
+        description: string;
+      }
+    >
   >({});
   // Add new recipe row modal
   const [bomModalProduct, setBomModalProduct] = useState<ProductItem | null>(
@@ -433,7 +443,7 @@ export default function AdminPortalPage() {
     setProdTag("Mới");
     setProdImageUrl("/images/products/ca-phe-sua.png");
     setImageInputMode("preset");
-    setProdIsActive(true);
+    setProdIsActive(false);
     setProdIsSoldOutManual(false);
     setIsProductModalOpen(true);
   };
@@ -548,13 +558,24 @@ export default function AdminPortalPage() {
         throw new Error(err.message || "Không thể lưu sản phẩm");
       }
 
-      showToast(
-        editingProduct
-          ? `✅ Đã cập nhật món "${prodName.trim()}"`
-          : `✅ Đã thêm món mới "${prodName.trim()}" vào thực đơn`
-      );
+      const savedProduct = await res.json().catch(() => null);
       setIsProductModalOpen(false);
       await fetchAdminData();
+
+      if (!editingProduct && savedProduct) {
+        showToast(
+          `✅ Đã thêm món "${savedProduct.name || prodName.trim()}" (Mặc định ẨN). Mời bạn cấu hình công thức BOM.`
+        );
+        setActiveTab("recipes");
+        setFocusedProductIdForBom(savedProduct.id);
+        openAddBomModal(savedProduct);
+      } else {
+        showToast(
+          editingProduct
+            ? `✅ Đã cập nhật món "${prodName.trim()}"`
+            : `✅ Đã thêm món mới "${prodName.trim()}" vào thực đơn`
+        );
+      }
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Lỗi khi lưu sản phẩm");
     } finally {
@@ -1096,6 +1117,10 @@ export default function AdminPortalPage() {
           description: newVoucherDesc.trim() || `Giảm ${newVoucherPercent}% đơn hàng`,
           discountPercent: Number(newVoucherPercent) || 10,
           minOrderAmount: Number(newVoucherMinOrder) || 0,
+          maxDiscountAmount:
+            newVoucherMaxDiscount.trim() === ""
+              ? null
+              : Number(newVoucherMaxDiscount),
           isActive: true,
         }),
       });
@@ -1106,6 +1131,7 @@ export default function AdminPortalPage() {
       showToast(`✅ Đã tạo mã giảm giá ${newVoucherCode.trim().toUpperCase()} (-${newVoucherPercent}%)`);
       setNewVoucherCode("");
       setNewVoucherDesc("");
+      setNewVoucherMaxDiscount("");
       await fetchAdminData();
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Lỗi tạo mã giảm giá");
@@ -1125,6 +1151,11 @@ export default function AdminPortalPage() {
         body: JSON.stringify({
           discountPercent: draft ? Number(draft.discountPercent) : v.discountPercent,
           minOrderAmount: draft ? Number(draft.minOrderAmount) : v.minOrderAmount,
+          maxDiscountAmount: draft
+            ? draft.maxDiscountAmount.trim() === ""
+              ? null
+              : Number(draft.maxDiscountAmount)
+            : v.maxDiscountAmount,
           description: draft ? draft.description : v.description,
           isActive: overrideActive !== undefined ? overrideActive : v.isActive,
         }),
@@ -2915,7 +2946,7 @@ export default function AdminPortalPage() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
                   <div>
                     <label className="block text-xs font-bold text-[#2C1E18] mb-1">
                       Mã Code *
@@ -2958,6 +2989,20 @@ export default function AdminPortalPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-[#2C1E18] mb-1">
+                      Giảm tối đa (VNĐ)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="5000"
+                      value={newVoucherMaxDiscount}
+                      onChange={(e) => setNewVoucherMaxDiscount(e.target.value)}
+                      placeholder="Trống = K.giới hạn"
+                      className="w-full px-3 py-2 rounded-xl bg-[#FAF6F0] border border-[#E6DDD5] text-xs font-bold text-[#9E5A2B]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#2C1E18] mb-1">
                       Mô tả chương trình
                     </label>
                     <input
@@ -2984,6 +3029,10 @@ export default function AdminPortalPage() {
                   const draft = editingVoucherDrafts[v.id] ?? {
                     discountPercent: String(v.discountPercent),
                     minOrderAmount: String(v.minOrderAmount || 0),
+                    maxDiscountAmount:
+                      v.maxDiscountAmount !== null && v.maxDiscountAmount !== undefined
+                        ? String(v.maxDiscountAmount)
+                        : "",
                     description: v.description || "",
                   };
                   const hasChanged = Boolean(editingVoucherDrafts[v.id]);
@@ -2998,9 +3047,20 @@ export default function AdminPortalPage() {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <span className="px-2.5 py-1 rounded-lg bg-[#FEF3C7] text-[#9E5A2B] font-mono text-sm font-extrabold">
-                            {v.code}
-                          </span>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2.5 py-1 rounded-lg bg-[#FEF3C7] text-[#9E5A2B] font-mono text-sm font-extrabold">
+                              {v.code}
+                            </span>
+                            {v.maxDiscountAmount && Number(v.maxDiscountAmount) > 0 ? (
+                              <span className="px-2 py-0.5 rounded-md bg-[#FAF0E6] text-[#845326] text-[10px] font-bold border border-[#845326]/20">
+                                Trần: {Number(v.maxDiscountAmount).toLocaleString("vi-VN")}đ
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-md bg-stone-100 text-stone-600 text-[10px] font-bold">
+                                Không giới hạn trần
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[11px] text-[#7A6A5E] mt-1">
                             Đã sử dụng: <strong>{v.usageCount ?? 0} lượt</strong>
                           </p>
@@ -3031,7 +3091,7 @@ export default function AdminPortalPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-3 gap-2">
                           <div>
                             <label className="block text-[10px] font-bold text-[#7A6A5E]">
                               Giảm (%)
@@ -3066,6 +3126,25 @@ export default function AdminPortalPage() {
                                 }))
                               }
                               className="w-full px-2.5 py-1 rounded-lg bg-[#FAF6F0] border border-[#E6DDD5] text-xs font-bold"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-[#7A6A5E]">
+                              Giảm tối đa (đ)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="5000"
+                              placeholder="K.giới hạn"
+                              value={draft.maxDiscountAmount}
+                              onChange={(e) =>
+                                setEditingVoucherDrafts((prev) => ({
+                                  ...prev,
+                                  [v.id]: { ...draft, maxDiscountAmount: e.target.value },
+                                }))
+                              }
+                              className="w-full px-2.5 py-1 rounded-lg bg-[#FAF6F0] border border-[#E6DDD5] text-xs font-bold text-[#9E5A2B]"
                             />
                           </div>
                         </div>

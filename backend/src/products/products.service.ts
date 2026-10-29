@@ -22,9 +22,9 @@ export class ProductsService {
     if (!Array.isArray(product.recipes) || product.recipes.length === 0) {
       return {
         ...product,
-        isOutOfStock: manualSoldOut,
-        ingredientOutOfStock: false,
-        availableServings: manualSoldOut ? 0 : 99,
+        isOutOfStock: true, // Tự động khóa đặt món nếu chưa có công thức BOM
+        ingredientOutOfStock: true,
+        availableServings: 0,
         recipesCount: 0,
         orderItemsCount: orderCountMap
           ? (orderCountMap[product.id] ?? 0)

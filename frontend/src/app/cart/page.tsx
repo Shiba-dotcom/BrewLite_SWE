@@ -950,7 +950,7 @@ export default function CartPage() {
               description: meta?.title || v.description,
               minOrderAmount: meta?.minOrder !== undefined ? meta.minOrder : v.minOrderAmount || 0,
               quantity: v.quantity || 1,
-              maxDiscountAmount: meta?.maxDiscount || v.maxDiscountAmount || 25000,
+              maxDiscountAmount: (v.maxDiscountAmount !== undefined && v.maxDiscountAmount !== null) ? Number(v.maxDiscountAmount) : (meta?.maxDiscount || 25000),
             };
           });
         }
@@ -960,7 +960,7 @@ export default function CartPage() {
         const merged = [...baseList];
         userVouchers.forEach((uv) => {
           const meta = VOUCHER_METADATA[uv.code.toUpperCase()];
-          const maxCap = meta?.maxDiscount || (uv.discountPercent <= 10 ? 15000 : uv.discountPercent <= 20 ? 25000 : 60000);
+          const maxCap = (uv.maxDiscountAmount !== undefined && uv.maxDiscountAmount !== null) ? Number(uv.maxDiscountAmount) : (meta?.maxDiscount || (uv.discountPercent <= 10 ? 15000 : uv.discountPercent <= 20 ? 25000 : 60000));
           const minReq = meta?.minOrder !== undefined ? meta.minOrder : uv.minOrderAmount || 0;
           const title = meta?.title || `Ưu đãi ${uv.code} (-${uv.discountPercent}%)`;
           const idx = merged.findIndex((m) => m.code === uv.code);

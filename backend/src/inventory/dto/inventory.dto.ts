@@ -221,6 +221,11 @@ export class CreateVoucherDto {
   minOrderAmount?: number;
 
   @IsOptional()
+  @IsNumber()
+  @Min(0)
+  maxDiscountAmount?: number;
+
+  @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 }
@@ -244,6 +249,11 @@ export class UpdateVoucherDto {
   @IsNumber()
   @Min(0)
   minOrderAmount?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  maxDiscountAmount?: number;
 
   @IsOptional()
   @IsBoolean()

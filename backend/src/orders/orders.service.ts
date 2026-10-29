@@ -235,7 +235,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
 
       let matchedRate: number | null = null;
       let minOrderReq = MIN_ORDERS[code] ?? 0;
-      const maxDiscountCap = MAX_DISCOUNTS[code] ?? Infinity;
+      let maxDiscountCap = MAX_DISCOUNTS[code] ?? Infinity;
 
       if ((this.prisma as any).discountCode?.findUnique) {
         const dbVoucher = await (this.prisma as any).discountCode.findUnique({
@@ -250,6 +250,13 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
           if (dbVoucher.minOrderAmount) {
             minOrderReq = Math.max(minOrderReq, Number(dbVoucher.minOrderAmount));
           }
+          if (
+            dbVoucher.maxDiscountAmount !== null &&
+            dbVoucher.maxDiscountAmount !== undefined &&
+            Number(dbVoucher.maxDiscountAmount) > 0
+          ) {
+            maxDiscountCap = Number(dbVoucher.maxDiscountAmount);
+          }
           matchedRate = Number(dbVoucher.discountPercent || 0) / 100;
           await (this.prisma as any).discountCode
             .update({
@@ -257,6 +264,29 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
               data: { usageCount: { increment: 1 } },
             })
             .catch(() => undefined);
+        } else if (userId && (this.prisma as any).userVoucher?.findUnique) {
+          const personalVoucher = await (this.prisma as any).userVoucher.findUnique({
+            where: {
+              userId_code: {
+                userId,
+                code,
+              },
+            },
+          }).catch(() => null);
+
+          if (personalVoucher) {
+            if (personalVoucher.minOrderAmount) {
+              minOrderReq = Math.max(minOrderReq, Number(personalVoucher.minOrderAmount));
+            }
+            if (
+              personalVoucher.maxDiscountAmount !== null &&
+              personalVoucher.maxDiscountAmount !== undefined &&
+              Number(personalVoucher.maxDiscountAmount) > 0
+            ) {
+              maxDiscountCap = Number(personalVoucher.maxDiscountAmount);
+            }
+            matchedRate = Number(personalVoucher.discountPercent || 0) / 100;
+          }
         }
       }
 

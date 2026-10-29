@@ -15,6 +15,7 @@ export interface UserVoucherItem {
   quantity: number;
   discountPercent: number;
   minOrderAmount: number;
+  maxDiscountAmount?: number | null;
 }
 
 export interface AuthUser {

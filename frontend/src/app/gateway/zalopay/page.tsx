@@ -13,11 +13,13 @@ import {
   Building2,
   Sparkles,
   ArrowRight,
-  ExternalLink,
-  ChevronRight,
   RefreshCw,
+  PlusCircle,
+  RotateCcw,
+  X,
+  CreditCard,
 } from "lucide-react";
-import { apiFetch } from "../../store/authStore";
+import { apiFetch, useAuthStore } from "../../store/authStore";
 import { useCartStore } from "../../store/cartStore";
 
 function vnd(amount: number): string {
@@ -27,10 +29,14 @@ function vnd(amount: number): string {
   }).format(amount);
 }
 
+const DEFAULT_BALANCE = 1000000; // 1.000.000đ mặc định
+const BALANCE_STORAGE_KEY = "zalopay_sandbox_wallet_balance";
+
 function ZaloPayGatewayContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const clearCart = useCartStore((s) => s.clearCart);
+  const { user } = useAuthStore();
 
   // Lấy các tham số từ URL
   const orderId = Number(searchParams.get("orderId")) || 0;
@@ -41,13 +47,38 @@ function ZaloPayGatewayContent() {
   const token = searchParams.get("token") || "";
 
   // State quản lý luồng thanh toán
-  const [amount, setAmount] = useState(initialAmount);
-  const [walletBalance, setWalletBalance] = useState(500000);
+  const [amount] = useState(initialAmount);
+  const [walletBalance, setWalletBalance] = useState<number>(DEFAULT_BALANCE);
   const [timeLeft, setTimeLeft] = useState(900); // 15 phút đếm ngược
   const [status, setStatus] = useState<"READY" | "PROCESSING" | "SUCCESS" | "FAILED">("READY");
   const [errorMessage, setErrorMessage] = useState("");
   const [redirectCountdown, setRedirectCountdown] = useState(3);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
+
+  // State Nạp tiền vào ví
+  const [isTopupModalOpen, setIsTopupModalOpen] = useState(false);
+  const [topupAmountInput, setTopupAmountInput] = useState("500000");
+  const [topupSuccessMsg, setTopupSuccessMsg] = useState("");
+
+  // Tên và SĐT chủ ví động
+  const accountHolder = user?.fullName || "MÃ GIA VỸ (ZaloPay Sandbox User)";
+  const accountPhone = user?.phone || "0901***001";
+
+  // Đọc số dư từ localStorage khi mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = localStorage.getItem(BALANCE_STORAGE_KEY);
+      if (saved !== null && !isNaN(Number(saved)) && Number(saved) >= 0) {
+        setWalletBalance(Number(saved));
+      } else {
+        localStorage.setItem(BALANCE_STORAGE_KEY, String(DEFAULT_BALANCE));
+        setWalletBalance(DEFAULT_BALANCE);
+      }
+    } catch {
+      // fallback
+    }
+  }, []);
 
   // Đếm ngược 15 phút
   useEffect(() => {
@@ -88,9 +119,49 @@ function ZaloPayGatewayContent() {
     return () => clearInterval(interval);
   }, [status, orderId, router, clearCart]);
 
+  // Hành động Nạp tiền vào Ví
+  const handleTopup = (addAmount: number) => {
+    if (addAmount <= 0) return;
+    const nextBal = walletBalance + addAmount;
+    setWalletBalance(nextBal);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(BALANCE_STORAGE_KEY, String(nextBal));
+      } catch {}
+    }
+    setIsTopupModalOpen(false);
+    setErrorMessage(""); // Xóa thông báo lỗi thiếu tiền nếu có
+    setTopupSuccessMsg(`Đã nạp thành công +${vnd(addAmount)} vào ví ZaloPay!`);
+    setTimeout(() => setTopupSuccessMsg(""), 3500);
+  };
+
+  // Đặt lại số dư về mặc định 1.000.000đ
+  const handleResetBalance = () => {
+    setWalletBalance(DEFAULT_BALANCE);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(BALANCE_STORAGE_KEY, String(DEFAULT_BALANCE));
+      } catch {}
+    }
+    setErrorMessage("");
+    setTopupSuccessMsg("Đã khôi phục số dư ví về 1.000.000đ");
+    setTimeout(() => setTopupSuccessMsg(""), 3000);
+  };
+
   // Hành động 1: Xác nhận thanh toán qua ZaloPay
   const handleConfirmPayment = async () => {
     if (status === "PROCESSING" || status === "SUCCESS") return;
+
+    // KIỂM TRA ĐIỀU KIỆN SỐ DƯ VÍ
+    if (amount > walletBalance) {
+      setStatus("FAILED");
+      const missing = amount - walletBalance;
+      setErrorMessage(
+        `Giao dịch không thành công do số dư ví ZaloPay (${vnd(walletBalance)}) không đủ để thanh toán đơn hàng này (${vnd(amount)}). Bạn còn thiếu ${vnd(missing)}, vui lòng nạp thêm tiền vào ví để tiếp tục.`
+      );
+      return;
+    }
+
     setStatus("PROCESSING");
     setErrorMessage("");
 
@@ -109,16 +180,25 @@ function ZaloPayGatewayContent() {
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.success) {
-        // Trừ tiền ví ZaloPay trên UI
-        setWalletBalance((prev) => Math.max(0, prev - (data.totalAmount || amount)));
+        // Trừ tiền ví ZaloPay trên UI và lưu localStorage
+        const paidAmount = data.totalAmount || amount;
+        const newBal = Math.max(0, walletBalance - paidAmount);
+        setWalletBalance(newBal);
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem(BALANCE_STORAGE_KEY, String(newBal));
+          } catch {}
+        }
         setStatus("SUCCESS");
       } else {
         setStatus("FAILED");
         setErrorMessage(data.message || "Xác thực giao dịch từ máy chủ ZaloPay thất bại");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setStatus("FAILED");
-      setErrorMessage(err.message || "Không thể kết nối đến máy chủ Cổng thanh toán ZaloPay");
+      setErrorMessage(
+        err instanceof Error ? err.message : "Không thể kết nối đến máy chủ Cổng thanh toán ZaloPay"
+      );
     }
   };
 
@@ -135,10 +215,12 @@ function ZaloPayGatewayContent() {
     router.push(`/checkout?canceled=true&orderId=${orderId}`);
   };
 
+  const isInsufficient = amount > walletBalance;
+
   return (
     <div className="min-h-screen bg-[#F5F7FB] text-stone-800 flex flex-col font-sans selection:bg-[#0068FF] selection:text-white">
       {/* ─── HEADER CHUẨN ZALOPAY GATEWAY ─── */}
-      <header className="bg-linear-to-r from-[#0068FF] via-[#005AE0] to-[#0047BA] text-white shadow-md">
+      <header className="bg-gradient-to-r from-[#0068FF] via-[#005AE0] to-[#0047BA] text-white shadow-md">
         <div className="max-w-5xl mx-auto px-4 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Logo ZaloPay SVG */}
@@ -218,7 +300,7 @@ function ZaloPayGatewayContent() {
                 <span className="text-stone-500">Nguồn tiền thanh toán:</span>
                 <span className="font-medium text-stone-800 flex items-center gap-1.5">
                   <Wallet size={14} className="text-[#0068FF]" />
-                  Ví ZaloPay Sandbox (0900***888)
+                  Ví ZaloPay Sandbox ({accountHolder})
                 </span>
               </div>
               <div className="flex justify-between pt-1">
@@ -263,7 +345,7 @@ function ZaloPayGatewayContent() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12">
               {/* CỘT TRÁI (5 phần): THÔNG TIN ĐƠN HÀNG & THỤ HƯỞNG */}
-              <div className="lg:col-span-5 p-6 sm:p-8 bg-linear-to-b from-stone-50 to-white border-b lg:border-b-0 lg:border-r border-stone-200 flex flex-col justify-between">
+              <div className="lg:col-span-5 p-6 sm:p-8 bg-gradient-to-b from-stone-50 to-white border-b lg:border-b-0 lg:border-r border-stone-200 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-2 text-xs text-stone-500 mb-2 uppercase tracking-wider font-bold">
                     <Building2 size={14} className="text-[#0068FF]" />
@@ -313,7 +395,7 @@ function ZaloPayGatewayContent() {
                       />
                     </div>
                     <span className="text-[11px] text-stone-500 mt-2">
-                      Hoặc thực hiện thanh toán ngay trên laptop ở khung bên phải
+                      Hoặc thực hiện thanh toán trực tiếp ở khung bên phải
                     </span>
                   </div>
                 </div>
@@ -324,34 +406,78 @@ function ZaloPayGatewayContent() {
                 </div>
               </div>
 
-              {/* CỘT PHẢI (7 phần): CHỌN NGUỒN TIỀN & XÁC NHẬN */}
+              {/* CỘT PHẢI (7 phần): NGUỒN TIỀN VÍ & NẠP TIỀN */}
               <div className="lg:col-span-7 p-6 sm:p-8 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-extrabold text-base text-stone-900 flex items-center gap-2">
                       <Wallet size={18} className="text-[#0068FF]" />
-                      Chọn nguồn tiền thanh toán
+                      Nguồn tiền thanh toán
                     </h3>
-                    <span className="text-xs text-stone-500 font-medium">Tài khoản thử nghiệm</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleResetBalance}
+                        className="text-[11px] text-stone-500 hover:text-stone-800 flex items-center gap-1 font-semibold transition px-2 py-1 rounded-lg hover:bg-stone-100 cursor-pointer"
+                        title="Khôi phục số dư ví về 1.000.000đ ban đầu"
+                      >
+                        <RotateCcw size={12} />
+                        <span>Đặt lại 1tr</span>
+                      </button>
+                    </div>
                   </div>
 
-                  {errorMessage && (
-                    <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-start gap-2.5">
-                      <AlertCircle size={16} className="text-rose-500 shrink-0 mt-0.5" />
-                      <span>{errorMessage}</span>
+                  {/* Thông báo Nạp tiền thành công */}
+                  {topupSuccessMsg && (
+                    <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2 animate-in fade-in">
+                      <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                      <span className="font-semibold">{topupSuccessMsg}</span>
                     </div>
                   )}
 
-                  {/* Nguồn tiền 1: Ví ZaloPay Sandbox (CHỌN MẶC ĐỊNH) */}
-                  <div className="border-2 border-[#0068FF] bg-[#F2F7FF] rounded-2xl p-4 mb-3 transition shadow-xs relative">
-                    <div className="absolute top-3 right-3">
-                      <div className="w-5 h-5 rounded-full bg-[#0068FF] flex items-center justify-center text-white">
-                        <CheckCircle2 size={13} className="stroke-[3]" />
+                  {/* Thông báo lỗi khi không đủ tiền hoặc lỗi thanh toán */}
+                  {errorMessage && (
+                    <div className="mb-4 p-4 bg-rose-50 border-2 border-rose-300 text-rose-800 rounded-2xl text-xs space-y-2 animate-in fade-in">
+                      <div className="flex items-start gap-2.5">
+                        <AlertCircle size={18} className="text-rose-600 shrink-0 mt-0.5" />
+                        <span className="font-medium leading-relaxed">{errorMessage}</span>
                       </div>
+                      {isInsufficient && (
+                        <div className="pt-2 border-t border-rose-200 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setIsTopupModalOpen(true)}
+                            className="px-3.5 py-1.5 bg-[#0068FF] hover:bg-[#0050C8] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                          >
+                            <PlusCircle size={14} />
+                            <span>Nạp thêm tiền vào ví ngay</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Thẻ Ví ZaloPay Sandbox */}
+                  <div
+                    className={`rounded-2xl p-4 mb-4 transition shadow-xs relative border-2 ${
+                      isInsufficient
+                        ? "border-rose-400 bg-rose-50/40"
+                        : "border-[#0068FF] bg-[#F2F7FF]"
+                    }`}
+                  >
+                    <div className="absolute top-3 right-3 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsTopupModalOpen(true)}
+                        className="px-3 py-1.5 rounded-xl bg-[#0068FF] hover:bg-[#0050C8] text-white text-xs font-extrabold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                      >
+                        <PlusCircle size={14} />
+                        <span>+ Nạp tiền</span>
+                      </button>
                     </div>
 
                     <div className="flex items-start gap-3.5">
-                      <div className="w-11 h-11 rounded-xl bg-white border border-[#BFDBFE] p-1.5 flex items-center justify-center shrink-0 shadow-2xs">
+                      <div className="w-12 h-12 rounded-xl bg-white border border-[#BFDBFE] p-1.5 flex items-center justify-center shrink-0 shadow-2xs">
                         <svg viewBox="0 0 100 100" className="w-full h-full" fill="none">
                           <rect width="100" height="100" rx="20" fill="#0068FF" />
                           <path
@@ -364,56 +490,58 @@ function ZaloPayGatewayContent() {
                         </svg>
                       </div>
 
-                      <div className="space-y-1">
+                      <div className="space-y-1 pr-24">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-stone-900 text-sm">
-                            Ví điện tử ZaloPay (Sandbox)
+                            Ví điện tử ZaloPay
                           </span>
                           <span className="bg-blue-100 text-[#0068FF] text-[10px] font-bold px-2 py-0.5 rounded-full">
-                            Ưu tiên
+                            Sandbox
                           </span>
                         </div>
                         <p className="text-xs text-stone-600 font-medium">
-                          Chủ ví: <strong className="text-stone-800">ZaloPay Sandbox Test User</strong>
+                          Chủ ví: <strong className="text-stone-800">{accountHolder}</strong>
                         </p>
                         <p className="text-xs text-stone-600 font-mono">
-                          Số điện thoại: <strong>0900***888</strong>
+                          Số điện thoại: <strong>{accountPhone}</strong>
                         </p>
-                        <div className="pt-1.5 flex items-center gap-1.5 text-xs text-emerald-800">
-                          <span className="font-semibold text-stone-500">Số dư khả dụng:</span>
-                          <span className="font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md">
+
+                        <div className="pt-2 flex items-center gap-2 text-xs flex-wrap">
+                          <span className="font-semibold text-stone-600">Số dư khả dụng:</span>
+                          <span
+                            className={`font-black text-sm px-2.5 py-0.5 rounded-lg border ${
+                              isInsufficient
+                                ? "bg-rose-100 text-rose-700 border-rose-300"
+                                : "bg-emerald-100 text-emerald-800 border-emerald-300"
+                            }`}
+                          >
                             {vnd(walletBalance)}
                           </span>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Nguồn tiền 2: Thẻ Ngân hàng Liên kết (Mô phỏng tùy chọn phụ) */}
-                  <div className="border border-stone-200/80 bg-stone-50/60 rounded-2xl p-4 opacity-75 hover:opacity-100 transition cursor-pointer">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-white border border-stone-200 flex items-center justify-center text-stone-500 shadow-2xs">
-                          <Building2 size={20} />
-                        </div>
-                        <div>
-                          <p className="font-bold text-stone-800 text-xs sm:text-sm">
-                            Thẻ ATM / Tài khoản ngân hàng liên kết
-                          </p>
-                          <p className="text-[11px] text-stone-500">
-                            Vietcombank, MB Bank, Techcombank, BIDV
-                          </p>
-                        </div>
-                      </div>
-                      <ChevronRight size={16} className="text-stone-400" />
+                    {/* Dòng trạng thái so sánh số dư & đơn hàng */}
+                    <div className="mt-3 pt-3 border-t border-stone-200/80 flex items-center justify-between text-xs">
+                      <span className="text-stone-500">Cần thanh toán:</span>
+                      <span className="font-extrabold text-[#0068FF]">{vnd(amount)}</span>
                     </div>
                   </div>
 
                   {/* Hướng dẫn ngắn */}
-                  <div className="mt-5 p-3.5 bg-blue-50/80 rounded-2xl border border-blue-100 text-xs text-[#1E429F] flex items-start gap-2.5">
+                  <div className="p-3.5 bg-blue-50/80 rounded-2xl border border-blue-100 text-xs text-[#1E429F] flex items-start gap-2.5">
                     <Sparkles size={16} className="text-[#0068FF] shrink-0 mt-0.5" />
                     <span>
-                      Nhấn nút <strong>Thanh toán ngay</strong> bên dưới để hoàn tất giao dịch lập tức mà không cần nhập mã PIN.
+                      {isInsufficient ? (
+                        <>
+                          Số dư ví hiện tại không đủ để trả cho đơn hàng này. Vui lòng bấm{" "}
+                          <strong>+ Nạp tiền</strong> ở trên để nạp thêm và tiếp tục.
+                        </>
+                      ) : (
+                        <>
+                          Số dư ví hoàn toàn khả dụng. Nhấn nút <strong>Xác nhận thanh toán</strong> bên dưới để hoàn tất giao dịch.
+                        </>
+                      )}
                     </span>
                   </div>
                 </div>
@@ -423,14 +551,23 @@ function ZaloPayGatewayContent() {
                   {/* NÚT CHÍNH: THANH TOÁN BẰNG VÍ ZALOPAY */}
                   <button
                     type="button"
-                    disabled={status === "PROCESSING"}
+                    disabled={status === "PROCESSING" || isInsufficient}
                     onClick={handleConfirmPayment}
-                    className="w-full py-4 px-6 bg-linear-to-r from-[#0068FF] to-[#0050C8] hover:from-[#0050C8] hover:to-[#003B94] text-white font-extrabold rounded-2xl text-base flex items-center justify-center gap-2.5 transition shadow-lg shadow-blue-500/30 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed transform active:scale-[0.99]"
+                    className={`w-full py-4 px-6 font-extrabold rounded-2xl text-base flex items-center justify-center gap-2.5 transition shadow-lg cursor-pointer transform active:scale-[0.99] ${
+                      isInsufficient
+                        ? "bg-stone-300 text-stone-500 cursor-not-allowed shadow-none"
+                        : "bg-gradient-to-r from-[#0068FF] to-[#0050C8] hover:from-[#0050C8] hover:to-[#003B94] text-white shadow-blue-500/30"
+                    }`}
                   >
                     {status === "PROCESSING" ? (
                       <>
                         <RefreshCw size={18} className="animate-spin text-white" />
                         <span>Đang xử lý giao dịch qua cổng bảo mật ZaloPay...</span>
+                      </>
+                    ) : isInsufficient ? (
+                      <>
+                        <AlertCircle size={18} className="text-rose-600" />
+                        <span>Số dư không đủ — Vui lòng nạp thêm tiền</span>
                       </>
                     ) : (
                       <>
@@ -456,6 +593,112 @@ function ZaloPayGatewayContent() {
           </div>
         )}
       </main>
+
+      {/* ── MODAL NẠP TIỀN VÀO VÍ ZALOPAY SANDBOX ── */}
+      {isTopupModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div
+            className="fixed inset-0"
+            onClick={() => setIsTopupModalOpen(false)}
+            aria-hidden="true"
+          />
+
+          <div
+            className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden p-6 z-10 border border-stone-200 space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 text-[#0068FF] flex items-center justify-center">
+                  <Wallet size={20} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-stone-900">
+                    Nạp Tiền Vào Ví ZaloPay
+                  </h3>
+                  <p className="text-xs text-stone-500">Môi trường thử nghiệm Sandbox</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsTopupModalOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-stone-400 hover:text-stone-800 hover:bg-stone-100 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="bg-stone-50 p-3.5 rounded-2xl border border-stone-200 flex justify-between items-center text-xs">
+                <span className="text-stone-500">Số dư hiện tại:</span>
+                <span className="font-extrabold text-stone-900 text-sm">
+                  {vnd(walletBalance)}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1.5">
+                  Nhập số tiền muốn nạp (VNĐ):
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="50000"
+                    min="10000"
+                    value={topupAmountInput}
+                    onChange={(e) => setTopupAmountInput(e.target.value)}
+                    placeholder="VD: 500000"
+                    className="w-full px-4 py-3 rounded-2xl bg-[#FAF6F0] border-2 border-stone-300 focus:border-[#0068FF] text-base font-extrabold text-[#0068FF] outline-hidden transition"
+                  />
+                  <span className="absolute right-4 top-3.5 text-xs font-bold text-stone-400">
+                    VNĐ
+                  </span>
+                </div>
+              </div>
+
+              {/* Nút nạp nhanh */}
+              <div>
+                <p className="text-[11px] font-bold text-stone-500 mb-1.5">Chọn nhanh mức nạp:</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[100000, 500000, 1000000].map((quick) => (
+                    <button
+                      key={quick}
+                      type="button"
+                      onClick={() => setTopupAmountInput(String(quick))}
+                      className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition cursor-pointer text-center ${
+                        topupAmountInput === String(quick)
+                          ? "bg-blue-50 border-[#0068FF] text-[#0068FF]"
+                          : "bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100"
+                      }`}
+                    >
+                      +{vnd(quick)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsTopupModalOpen(false)}
+                className="flex-1 py-3 px-4 rounded-xl border border-stone-200 text-stone-600 hover:bg-stone-100 text-xs font-bold transition cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTopup(Number(topupAmountInput) || 0)}
+                className="flex-1 py-3 px-4 rounded-xl bg-[#0068FF] hover:bg-[#0050C8] text-white text-xs font-extrabold transition shadow-md shadow-blue-500/20 cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <PlusCircle size={15} />
+                <span>Xác nhận Nạp tiền</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* FOOTER BẢO MẬT */}
       <footer className="py-4 text-center text-xs text-stone-500 border-t border-stone-200/60 bg-white/50">

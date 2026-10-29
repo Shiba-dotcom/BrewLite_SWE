@@ -182,6 +182,12 @@ export class AuthService {
       let userVoucher = null;
       if (voucherData && voucherData.code) {
         const cleanCode = voucherData.code.trim().toUpperCase();
+        const masterVoucher = await (tx as any).discountCode?.findUnique({
+          where: { code: cleanCode },
+        }).catch(() => null);
+        const effectiveMax = masterVoucher?.maxDiscountAmount ?? (voucherData as any).maxDiscountAmount ?? null;
+        const effectiveMin = masterVoucher?.minOrderAmount ?? voucherData.minOrderAmount ?? 0;
+        const effectivePercent = masterVoucher?.discountPercent ?? voucherData.discountPercent;
         const existing = await (tx as any).userVoucher.findUnique({
           where: {
             userId_code: {
@@ -196,6 +202,7 @@ export class AuthService {
             where: { id: existing.id },
             data: {
               quantity: { increment: 1 },
+              ...(effectiveMax ? { maxDiscountAmount: effectiveMax } : {}),
             },
           });
         } else {
@@ -204,8 +211,9 @@ export class AuthService {
               userId,
               code: cleanCode,
               quantity: 1,
-              discountPercent: voucherData.discountPercent,
-              minOrderAmount: voucherData.minOrderAmount || 0,
+              discountPercent: effectivePercent,
+              minOrderAmount: effectiveMin,
+              maxDiscountAmount: effectiveMax,
             },
           });
         }
