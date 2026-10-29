@@ -382,72 +382,143 @@ export default function LoginClient() {
                   </p>
                 </div>
 
-                {/* Quick Role Demo Switcher (Sprint 4 RBAC) */}
+                {/* Quick Role Demo Switcher (Sprint 4 RBAC & Team Members) */}
                 {mode === "login" && (
-                  <div className="p-3 rounded-2xl bg-[#f8f2ee] border border-[#2c1810]/10 flex flex-col gap-2">
+                  <div className="p-3.5 rounded-2xl bg-[#f8f2ee] border border-[#2c1810]/10 flex flex-col gap-2.5">
                     <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-[#845326]">
                       <span className="flex items-center gap-1">
                         <span className="material-symbols-outlined text-sm">
                           admin_panel_settings
                         </span>
-                        Điền nhanh tài khoản phân quyền (Demo RBAC)
+                        Điền nhanh tài khoản phân quyền (1-Click Fill Demo)
                       </span>
-                      <span className="text-[#827470] font-normal">1-Click Fill</span>
+                      <span className="text-[#827470] font-normal text-[10px]">Bấm là điền ngay</span>
                     </div>
+
+                    {/* Hàng 1: 3 Vai trò chính (Admin, Barista Trưởng ca, Khách hàng) */}
                     <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleQuickDemoFill("3124410414@sv.sgu.edu.vn", "Admin@123")
+                        }
+                        className="px-2.5 py-2 rounded-xl bg-white hover:bg-amber-100/50 border border-[#2c1810]/10 text-left transition-all cursor-pointer group shadow-2xs"
+                      >
+                        <div className="text-[11px] font-extrabold text-[#2c1810] flex items-center gap-1">
+                          <span className="material-symbols-outlined text-sm text-[#845326]">
+                            shield_person
+                          </span>
+                          Admin (Mã Gia Vỹ)
+                        </div>
+                        <div className="text-[9.5px] text-[#827470] truncate mt-0.5 font-mono">
+                          Quản lý cửa hàng
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleQuickDemoFill("giathanhnguyen1203.edu@gmail.com", "123456")
+                        }
+                        className="px-2.5 py-2 rounded-xl bg-white hover:bg-orange-100/50 border border-[#2c1810]/10 text-left transition-all cursor-pointer group shadow-2xs"
+                      >
+                        <div className="text-[11px] font-extrabold text-[#2c1810] flex items-center gap-1">
+                          <span className="material-symbols-outlined text-sm text-[#D97736]">
+                            coffee_maker
+                          </span>
+                          Trưởng Ca (Gia Thành)
+                        </div>
+                        <div className="text-[9.5px] text-[#827470] truncate mt-0.5 font-mono">
+                          Barista KDS • 123456
+                        </div>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() =>
                           handleQuickDemoFill("khach@brewlite.vn", "Password123")
                         }
-                        className="px-3 py-2 rounded-xl bg-white hover:bg-[#febc85]/30 border border-[#2c1810]/10 text-left transition-all cursor-pointer group"
+                        className="px-2.5 py-2 rounded-xl bg-white hover:bg-emerald-100/50 border border-[#2c1810]/10 text-left transition-all cursor-pointer group shadow-2xs"
                       >
-                        <div className="text-[12px] font-bold text-[#2c1810] flex items-center gap-1">
-                          <span className="material-symbols-outlined text-sm text-[#845326]">
+                        <div className="text-[11px] font-extrabold text-[#2c1810] flex items-center gap-1">
+                          <span className="material-symbols-outlined text-sm text-[#2D6A4F]">
                             person
                           </span>
-                          Khách hàng
+                          Khách Hàng Demo
                         </div>
-                        <div className="text-[10px] text-[#827470] truncate">
+                        <div className="text-[9.5px] text-[#827470] truncate mt-0.5 font-mono">
                           khach@brewlite.vn
                         </div>
                       </button>
+                    </div>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleQuickDemoFill("staff@brewlite.vn", "Staff@123")
-                        }
-                        className="px-3 py-2 rounded-xl bg-white hover:bg-[#febc85]/30 border border-[#2c1810]/10 text-left transition-all cursor-pointer group"
-                      >
-                        <div className="text-[12px] font-bold text-[#2c1810] flex items-center gap-1">
-                          <span className="material-symbols-outlined text-sm text-[#D97736]">
-                            coffee_maker
-                          </span>
-                          Barista KDS
-                        </div>
-                        <div className="text-[10px] text-[#827470] truncate">
-                          staff@brewlite.vn
-                        </div>
-                      </button>
+                    {/* Hàng 2: Danh sách 4 Nhân viên ca làm (Mật khẩu: 123456) */}
+                    <div className="pt-2 border-t border-[#2c1810]/10">
+                      <p className="text-[10px] font-bold text-[#827470] mb-1.5 uppercase tracking-wider flex items-center gap-1">
+                        <span className="material-symbols-outlined text-xs">group</span>
+                        Nhân viên ca làm (Mật khẩu: 123456):
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleQuickDemoFill("donquach1234@gmail.com", "123456")
+                          }
+                          className="px-2 py-1.5 rounded-lg bg-white hover:bg-[#FAF4EE] border border-[#2c1810]/10 text-left transition-all cursor-pointer"
+                        >
+                          <div className="text-[11px] font-bold text-[#2c1810] truncate">
+                            Quách Kỳ Minh
+                          </div>
+                          <div className="text-[9.5px] text-[#845326] truncate">
+                            Thu Ngân Chính
+                          </div>
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleQuickDemoFill("admin@brewlite.vn", "Admin@123")
-                        }
-                        className="px-3 py-2 rounded-xl bg-white hover:bg-[#febc85]/30 border border-[#2c1810]/10 text-left transition-all cursor-pointer group"
-                      >
-                        <div className="text-[12px] font-bold text-[#2c1810] flex items-center gap-1">
-                          <span className="material-symbols-outlined text-sm text-[#2D6A4F]">
-                            inventory_2
-                          </span>
-                          Admin Kho
-                        </div>
-                        <div className="text-[10px] text-[#827470] truncate">
-                          admin@brewlite.vn
-                        </div>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleQuickDemoFill("nguyenthiy1403@gmail.com", "123456")
+                          }
+                          className="px-2 py-1.5 rounded-lg bg-white hover:bg-[#FAF4EE] border border-[#2c1810]/10 text-left transition-all cursor-pointer"
+                        >
+                          <div className="text-[11px] font-bold text-[#2c1810] truncate">
+                            Nguyễn Thị Ý
+                          </div>
+                          <div className="text-[9.5px] text-[#845326] truncate">
+                            Barista Pha Chế
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleQuickDemoFill("vuchauminhkhoi87017@gmail.com", "123456")
+                          }
+                          className="px-2 py-1.5 rounded-lg bg-white hover:bg-[#FAF4EE] border border-[#2c1810]/10 text-left transition-all cursor-pointer"
+                        >
+                          <div className="text-[11px] font-bold text-[#2c1810] truncate">
+                            Vũ Châu M. Khôi
+                          </div>
+                          <div className="text-[9.5px] text-[#845326] truncate">
+                            Barista Pha Chế
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleQuickDemoFill("tuankiethuynh2222@gmail.com", "123456")
+                          }
+                          className="px-2 py-1.5 rounded-lg bg-white hover:bg-[#FAF4EE] border border-[#2c1810]/10 text-left transition-all cursor-pointer"
+                        >
+                          <div className="text-[11px] font-bold text-[#2c1810] truncate">
+                            Huỳnh Tuấn Kiệt
+                          </div>
+                          <div className="text-[9.5px] text-[#845326] truncate">
+                            Phục Vụ &amp; Kho
+                          </div>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

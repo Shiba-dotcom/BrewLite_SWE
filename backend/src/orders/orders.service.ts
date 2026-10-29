@@ -421,6 +421,8 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       totalAmount: order.totalAmount,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
+      staffId: (order as any).staffId,
+      staffName: (order as any).staffName,
       items: order.items,
       payments: order.payments,
     }));
@@ -543,6 +545,25 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     const previousStatus = order.status;
 
     // State Machine Guard: chặn các transition không hợp lệ
+    // Lấy thông tin nhân viên pha chế khi Barista/Admin nhận đơn (PREPARING) hoặc cập nhật đơn
+    let staffData: { staffId?: number | null; staffName?: string | null } = {};
+    if (isStaffOrAdmin && (nextStatus === OrderStatus.PREPARING || !(order as any).staffId)) {
+      try {
+        const staffUser = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, fullName: true },
+        });
+        if (staffUser) {
+          staffData = {
+            staffId: staffUser.id,
+            staffName: staffUser.fullName,
+          };
+        }
+      } catch {
+        // bỏ qua nếu lỗi
+      }
+    }
+
     assertTransition(previousStatus, nextStatus);
 
     // Nếu hủy đơn (CANCELLED) và có $transaction + recipe -> hoàn lại kho nguyên vật liệu & trừ lại điểm thưởng
@@ -627,11 +648,13 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       });
 
       return {
-        orderId: updated.id,
-        previousStatus,
-        status: updated.status,
-        updatedAt: updated.updatedAt,
-      };
+      orderId: updated.id,
+      previousStatus,
+      status: updated.status,
+      updatedAt: updated.updatedAt,
+      staffId: (updated as any).staffId,
+      staffName: (updated as any).staffName,
+    };
     }
 
     // Khi đơn hàng thành công (COMPLETED - Sau khi nhận món):
@@ -677,16 +700,21 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       });
 
       return {
-        orderId: updated.id,
-        previousStatus,
-        status: updated.status,
-        updatedAt: updated.updatedAt,
-      };
+      orderId: updated.id,
+      previousStatus,
+      status: updated.status,
+      updatedAt: updated.updatedAt,
+      staffId: (updated as any).staffId,
+      staffName: (updated as any).staffName,
+    };
     }
 
     const updated = await this.prisma.order.update({
       where: { id: orderId },
-      data: { status: nextStatus },
+      data: {
+        status: nextStatus,
+        ...staffData,
+      },
     });
 
     return {
@@ -694,6 +722,8 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       previousStatus,
       status: updated.status,
       updatedAt: updated.updatedAt,
+      staffId: (updated as any).staffId,
+      staffName: (updated as any).staffName,
     };
   }
 

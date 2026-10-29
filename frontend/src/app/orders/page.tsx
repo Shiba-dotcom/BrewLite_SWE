@@ -33,6 +33,8 @@ interface Order {
   status: string;
   totalAmount: number;
   createdAt: string;
+  staffId?: number | null;
+  staffName?: string | null;
   updatedAt: string;
   items: OrderItem[];
   payments: Payment[];
@@ -264,6 +266,11 @@ function OrderCard({
               <span className="text-[#504440] text-[13px]">
                 • {formatDate(order.createdAt)}
               </span>
+              {order.staffName && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#FAF4EE] text-[#845326] border border-[#E8DFD7]">
+                  <span>👨‍🍳 Barista:</span> <span>{order.staffName}</span>
+                </span>
+              )}
             </div>
 
             {/* Items summary */}
@@ -1070,6 +1077,11 @@ function OrdersContent() {
                             Trạm 01 • Kệ Express Bar 04
                           </span>
                         </div>
+                        {heroOrder?.staffName && (
+                          <div className="ml-2 pl-3 border-l border-current/15 flex items-center gap-1 text-[12px] font-bold text-[#845326]">
+                            <span>👨‍🍳 Barista:</span> <span>{heroOrder.staffName}</span>
+                          </div>
+                        )}
                         <div className="ml-2 pl-3 border-l border-current/15">
                           <span
                             className={`text-[13px] font-extrabold ${

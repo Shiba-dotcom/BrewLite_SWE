@@ -22,6 +22,8 @@ function safeUser(u: {
   fullName: string | null;
   phone: string | null;
   role?: Role;
+  position?: string | null;
+  isActive?: boolean;
   loyaltyPoints: number;
   createdAt: Date;
   vouchers?: any[];
@@ -32,6 +34,8 @@ function safeUser(u: {
     fullName: u.fullName,
     phone: u.phone,
     role: u.role ?? Role.CUSTOMER,
+    position: (u as any).position ?? null,
+    isActive: (u as any).isActive !== false,
     loyaltyPoints: u.loyaltyPoints,
     createdAt: u.createdAt,
     vouchers: u.vouchers ?? [],
@@ -99,6 +103,12 @@ export class AuthService {
     if (!passwordMatch) {
       throw new UnauthorizedException(
         'Email hoặc mật khẩu không chính xác. Vui lòng thử lại.',
+      );
+    }
+
+    if ((user as any).isActive === false) {
+      throw new UnauthorizedException(
+        'Tài khoản này hiện đang bị tạm khóa. Vui lòng liên hệ Quản lý cửa hàng.',
       );
     }
 

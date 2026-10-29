@@ -617,19 +617,104 @@ async function main() {
     },
   });
 
-  await prisma.user.upsert({
+  const staffEasyHash = await bcrypt.hash('123456', 10);
+
+  // 5 Nhân viên seed từ DanhSach.md (Mật khẩu: 123456)
+  const staffMembers = [
+    {
+      email: 'giathanhnguyen1203.edu@gmail.com',
+      fullName: 'Nguyễn Gia Thành',
+      phone: '0902120301',
+      position: 'Trưởng Ca / Barista',
+    },
+    {
+      email: 'donquach1234@gmail.com',
+      fullName: 'Quách Kỳ Minh',
+      phone: '0903123402',
+      position: 'Thu Ngân Chính',
+    },
+    {
+      email: 'nguyenthiy1403@gmail.com',
+      fullName: 'Nguyễn Thị Ý',
+      phone: '0904140303',
+      position: 'Barista Pha Chế',
+    },
+    {
+      email: 'vuchauminhkhoi87017@gmail.com',
+      fullName: 'Vũ Châu Minh Khôi',
+      phone: '0905870104',
+      position: 'Barista Pha Chế',
+    },
+    {
+      email: 'tuankiethuynh2222@gmail.com',
+      fullName: 'Huỳnh Tuấn Kiệt',
+      phone: '0906222205',
+      position: 'Phục Vụ & Kiểm Kho',
+    },
+  ];
+
+  for (const s of staffMembers) {
+    await (prisma.user as any).upsert({
+      where: { email: s.email },
+      update: {
+        passwordHash: staffEasyHash,
+        role: Role.STAFF,
+        fullName: s.fullName,
+        position: s.position,
+        isActive: true,
+      },
+      create: {
+        email: s.email,
+        passwordHash: staffEasyHash,
+        role: Role.STAFF,
+        fullName: s.fullName,
+        phone: s.phone,
+        position: s.position,
+        isActive: true,
+        loyaltyPoints: 0,
+      },
+    });
+  }
+
+  // Seed tài khoản Admin Mã Gia Vỹ
+  await (prisma.user as any).upsert({
+    where: { email: '3124410414@sv.sgu.edu.vn' },
+    update: {
+      passwordHash: adminHash,
+      role: Role.ADMIN,
+      fullName: 'Mã Gia Vỹ (Admin)',
+      position: 'Quản Lý Cửa Hàng',
+      isActive: true,
+    },
+    create: {
+      email: '3124410414@sv.sgu.edu.vn',
+      passwordHash: adminHash,
+      role: Role.ADMIN,
+      fullName: 'Mã Gia Vỹ (Admin)',
+      phone: '0901041400',
+      position: 'Quản Lý Cửa Hàng',
+      isActive: true,
+      loyaltyPoints: 1000,
+    },
+  });
+
+  await (prisma.user as any).upsert({
     where: { email: 'staff@brewlite.vn' },
     update: {
-      passwordHash: staffHash,
+      passwordHash: staffEasyHash,
       role: Role.STAFF,
       fullName: 'Barista Trưởng Ca (Staff)',
+      position: 'Barista Trưởng Ca',
+      isActive: true,
     },
     create: {
       email: 'staff@brewlite.vn',
-      passwordHash: staffHash,
+      passwordHash: staffEasyHash,
       role: Role.STAFF,
       fullName: 'Barista Trưởng Ca (Staff)',
       phone: '0901000002',
+      position: 'Barista Trưởng Ca',
+      isActive: true,
       loyaltyPoints: 0,
     },
   });

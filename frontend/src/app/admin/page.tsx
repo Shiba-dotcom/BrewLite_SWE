@@ -1,5 +1,8 @@
 "use client";
 
+import RevenueChartSection from "./components/RevenueChartSection";
+import StaffManagementSection, { StaffUser } from "./components/StaffManagementSection";
+
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -136,7 +139,7 @@ interface TopSellingProduct {
   orderCount: number;
 }
 
-type AdminTab = "overview" | "products" | "inventory" | "recipes" | "vouchers" | "revenue";
+type AdminTab = "overview" | "products" | "inventory" | "recipes" | "vouchers" | "revenue" | "staff";
 
 const CATEGORY_OPTIONS = [
   { id: "vietnamese", label: "Cà Phê Phin Việt Nam" },
@@ -170,7 +173,7 @@ export default function AdminPortalPage() {
   const router = useRouter();
   const { user, isAuthenticated, _hasHydrated, logout } = useAuthStore();
 
-  const [activeTab, setActiveTab] = useState<AdminTab>("products");
+  const [activeTab, setActiveTab] = useState<AdminTab>("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
 
   // Core Data States
@@ -180,6 +183,7 @@ export default function AdminPortalPage() {
     []
   );
   const [allOrders, setAllOrders] = useState<OrderSummary[]>([]);
+  const [staffList, setStaffList] = useState<StaffUser[]>([]);
   const [topSellingProducts, setTopSellingProducts] = useState<
     TopSellingProduct[]
   >([]);
@@ -3187,6 +3191,8 @@ export default function AdminPortalPage() {
              =================================================================== */}
           {(activeTab === "overview" || activeTab === "revenue") && (
             <div className="space-y-6">
+              {/* Biểu Đồ Thống Kê Doanh Thu 7 Ngày & Phân Bổ Nhóm Món Trực Quan */}
+              <RevenueChartSection allOrders={allOrders} products={products} />
               {/* Top Best-Sellers & Low Stock Alert Row */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Top Selling Products */}
@@ -3527,6 +3533,19 @@ export default function AdminPortalPage() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* ===================================================================
+              TAB 7: QUẢN LÝ NHÂN VIÊN & CA LÀM (STAFF CRUD)
+             =================================================================== */}
+          {activeTab === "staff" && (
+            <StaffManagementSection
+              staffList={staffList}
+              currentUserId={user?.id}
+              onRefresh={fetchAdminData}
+              showToast={showToast}
+              apiFetch={apiFetch}
+            />
           )}
         </main>
       </div>

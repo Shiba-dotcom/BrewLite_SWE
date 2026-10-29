@@ -49,6 +49,8 @@ interface BaristaOrder {
   discountAmount?: number;
   discountCode?: string | null;
   createdAt: string;
+  staffId?: number | null;
+  staffName?: string | null;
   updatedAt: string;
   user?: {
     id: number;
@@ -1253,6 +1255,7 @@ export default function BaristaKdsPage() {
                     <tr className="border-b border-[#E6DCD2] text-[11px] font-bold uppercase tracking-wider text-[#827470]">
                       <th className="py-3 px-4">Mã Đơn</th>
                       <th className="py-3 px-4">Khách hàng</th>
+                      <th className="py-3 px-4">Nhân viên phụ trách</th>
                       <th className="py-3 px-4">Chi tiết món đã pha</th>
                       <th className="py-3 px-4">Giờ hoàn tất</th>
                       <th className="py-3 px-4 text-right">Tổng tiền</th>
@@ -1269,6 +1272,15 @@ export default function BaristaKdsPage() {
                             ord.user?.email ||
                             "Khách vãng lai"}
                           {ord.user?.phone ? ` (${ord.user.phone})` : ""}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          {ord.staffName ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF4EE] border border-[#E8DFD7] text-xs font-bold text-[#845326] shadow-2xs whitespace-nowrap">
+                              <span>👨‍🍳</span> {ord.staffName}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-[#827470] italic whitespace-nowrap">— Chưa phân công</span>
+                          )}
                         </td>
                         <td className="py-3.5 px-4">
                           <div className="flex flex-wrap gap-1.5">
@@ -1410,6 +1422,11 @@ function HighContrastOrderTicket({
               {order.user?.fullName || order.user?.email || "Khách vãng lai"}
               {order.user?.phone ? ` • ${order.user.phone}` : ""}
             </p>
+            {order.staffName && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#FAF4EE] border border-[#E8DFD7] text-[10px] font-bold text-[#845326] shrink-0">
+                <span>👨‍🍳</span> {order.staffName}
+              </span>
+            )}
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="font-mono text-[10px] font-bold text-[#827470] bg-[#FAF7F4] px-2 py-0.5 rounded-md border border-[#ECE3DA]">
                 Lúc {elapsed.clockTime}

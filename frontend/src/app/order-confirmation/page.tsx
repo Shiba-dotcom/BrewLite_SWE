@@ -655,7 +655,7 @@ function OrderConfirmationContent() {
                         : "Tiến trình pha chế trực tiếp (Đồng bộ thời gian thực)"}
                     </span>
                     <span className="text-[11px] text-[#504440]">
-                      {isCancelled ? "Hệ thống tự động" : "Trạm Barista KDS #01"}
+                      {isCancelled ? "Hệ thống tự động" : (order as any)?.staffName ? `Barista: ${(order as any).staffName} • Trạm #01` : "Trạm Barista KDS #01"}
                     </span>
                   </div>
                   {isCancelled ? (
